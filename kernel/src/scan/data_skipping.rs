@@ -223,7 +223,7 @@ impl DataSkippingPredicateEvaluator for DataSkippingPredicateCreator {
     // they are truncated to milliseconds in add.stats.
     fn get_max_stat(&self, col: &ColumnName, data_type: &DataType) -> Option<Expr> {
         match data_type {
-            &DataType::TIMESTAMP | &DataType::TIMESTAMP_NTZ => None,
+            &DataType::TIMESTAMP | &DataType::TIMESTAMP_NTZ | &DataType::TIMESTAMP_NANOS => None,
             _ => Some(joined_column_expr!("maxValues", col)),
         }
     }
