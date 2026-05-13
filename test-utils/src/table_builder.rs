@@ -48,6 +48,8 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::sync::Arc;
 
+#[cfg(feature = "float16")]
+use delta_kernel::arrow::array::Float16Array;
 #[cfg(feature = "nanosecond-timestamps")]
 use delta_kernel::arrow::array::TimestampNanosecondArray;
 use delta_kernel::arrow::array::{
@@ -73,6 +75,8 @@ use delta_kernel::table_features::TableFeature;
 use delta_kernel::transaction::create_table::create_table;
 use delta_kernel::transaction::data_layout::DataLayout;
 use delta_kernel::{DeltaResult, Snapshot};
+#[cfg(feature = "float16")]
+use half::f16;
 
 // ===========================================================================
 // Sync/async bridge
@@ -1113,6 +1117,13 @@ fn generate_column(arrow_type: &ArrowDataType, rows: usize, base: i32) -> ArrayR
             let values: Vec<i64> = (0..rows).map(|i| (base + i as i32) as i64 * 1000).collect();
             Arc::new(Int64Array::from(values))
         }
+        #[cfg(feature = "float16")]
+        ArrowDataType::Float16 => {
+            let values: Vec<f16> = (0..rows)
+                .map(|i| f16::from_f32(base as f32) + f16::from_f32(i as f32 * 0.5))
+                .collect();
+            Arc::new(Float16Array::from(values))
+        }
         ArrowDataType::Float32 => {
             let values: Vec<f32> = (0..rows).map(|i| base as f32 + i as f32 * 0.5).collect();
             Arc::new(Float32Array::from(values))
@@ -1359,6 +1370,8 @@ fn scalar_for_type(data_type: &DataType, seed: usize) -> Scalar {
                 // Nanoseconds since epoch (no timezone)
                 Scalar::TimestampNanosNtz((18000 + seed as i64) * 86_400_000_000_000)
             }
+            #[cfg(feature = "float16")]
+            PrimitiveType::Float16 => Scalar::Float16(f16::from_f32(seed as f32 * 0.5)),
             PrimitiveType::Decimal(dt) => {
                 let scale_factor = 10i128.pow(dt.scale() as u32);
                 let bits = seed as i128 * scale_factor;
@@ -1383,6 +1396,8 @@ pub(crate) fn default_schema() -> SchemaRef {
         StructField::new("short_col", DataType::SHORT, true),
         StructField::new("int_col", DataType::INTEGER, true),
         StructField::new("long_col", DataType::LONG, true),
+        #[cfg(feature = "float16")]
+        StructField::new("float16_col", DataType::FLOAT16, true),
         StructField::new("float_col", DataType::FLOAT, true),
         StructField::new("double_col", DataType::DOUBLE, true),
         StructField::new("string_col", DataType::STRING, true),

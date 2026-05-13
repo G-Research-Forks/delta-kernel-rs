@@ -140,6 +140,8 @@ define_column_types!(COL_TYPES_INT, DataType::INTEGER);
 define_column_types!(COL_TYPES_LONG, DataType::LONG);
 define_column_types!(COL_TYPES_STRING, DataType::STRING);
 define_column_types!(COL_TYPES_BINARY, DataType::BINARY);
+#[cfg(feature = "float16")]
+define_column_types!(COL_TYPES_FLOAT16, DataType::FLOAT16);
 define_column_types!(COL_TYPES_FLOAT, DataType::FLOAT);
 define_column_types!(COL_TYPES_DOUBLE, DataType::DOUBLE);
 define_column_types!(COL_TYPES_DATE, DataType::DATE);
@@ -185,6 +187,8 @@ fn column_types_for(dt: &DataType) -> DeltaResult<&'static ColumnNamesAndTypes> 
         &DataType::LONG => Ok(&COL_TYPES_LONG),
         &DataType::STRING => Ok(&COL_TYPES_STRING),
         &DataType::BINARY => Ok(&COL_TYPES_BINARY),
+        #[cfg(feature = "float16")]
+        &DataType::FLOAT16 => Ok(&COL_TYPES_FLOAT16),
         &DataType::FLOAT => Ok(&COL_TYPES_FLOAT),
         &DataType::DOUBLE => Ok(&COL_TYPES_DOUBLE),
         &DataType::DATE => Ok(&COL_TYPES_DATE),
@@ -215,6 +219,8 @@ fn is_stat_present<'b>(
         &DataType::INTEGER => Ok(getter.get_int(row_idx, field_name)?.is_some()),
         &DataType::LONG => Ok(getter.get_long(row_idx, field_name)?.is_some()),
         &DataType::FLOAT => Ok(getter.get_float(row_idx, field_name)?.is_some()),
+        #[cfg(feature = "float16")]
+        &DataType::FLOAT16 => Ok(getter.get_float16(row_idx, field_name)?.is_some()),
         &DataType::DOUBLE => Ok(getter.get_double(row_idx, field_name)?.is_some()),
         &DataType::DATE => Ok(getter.get_date(row_idx, field_name)?.is_some()),
         &DataType::TIMESTAMP | &DataType::TIMESTAMP_NTZ => {
@@ -346,9 +352,13 @@ impl RowVisitor for NumRecordsValidator<'_> {
 mod tests {
     use std::sync::Arc;
 
+    #[cfg(feature = "float16")]
+    use half::f16;
     use rstest::rstest;
 
     use super::*;
+    #[cfg(feature = "float16")]
+    use crate::arrow::array::types::Float16Type;
     use crate::arrow::array::types::{
         Date32Type, Decimal128Type, Float32Type, Float64Type, Int32Type, TimestampMicrosecondType,
     };
@@ -800,6 +810,14 @@ mod tests {
         Arc::new(Int64Array::from(Vec::<Option<i64>>::new())) as ArrayRef,
         DataType::LONG,
     )]
+    #[cfg_attr(feature = "float16", case::float16(
+        Arc::new(PrimitiveArray::<Float16Type>::from(vec![Some(f16::from_f32(1.0)), Some(f16::from_f32(2.0)), Some(f16::from_f32(3.0))])) as ArrayRef,
+        DataType::FLOAT16,
+    ))]
+    #[cfg_attr(feature = "float16", case::float16_all_null(
+        Arc::new(PrimitiveArray::<Float16Type>::from(vec![None::<f16>, None, None])) as ArrayRef,
+        DataType::FLOAT16,
+    ))]
     #[case::float(
         Arc::new(PrimitiveArray::<Float32Type>::from(vec![Some(1.0f32), Some(2.0), Some(3.0)])) as ArrayRef,
         DataType::FLOAT,

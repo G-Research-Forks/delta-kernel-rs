@@ -13,6 +13,8 @@
 //! [`Scalar`]: crate::expressions::Scalar
 
 use chrono::{DateTime, NaiveDate, Utc};
+#[cfg(feature = "float16")]
+use half::f16;
 
 use crate::expressions::{DecimalData, Scalar};
 use crate::{DeltaResult, Error};
@@ -87,6 +89,8 @@ pub fn serialize_partition_value(value: &Scalar) -> DeltaResult<Option<String>> 
         Scalar::Short(v) => Ok(Some(v.to_string())),
         Scalar::Integer(v) => Ok(Some(v.to_string())),
         Scalar::Long(v) => Ok(Some(v.to_string())),
+        #[cfg(feature = "float16")]
+        Scalar::Float16(v) => Ok(Some(format_f16(*v))),
         Scalar::Float(v) => Ok(Some(format_f32(*v))),
         Scalar::Double(v) => Ok(Some(format_f64(*v))),
         Scalar::Date(days) => Ok(Some(format_date(*days)?)),
@@ -151,6 +155,12 @@ macro_rules! format_java_float {
             }
         }
     }};
+}
+
+#[cfg(feature = "float16")]
+fn format_f16(v: f16) -> String {
+    let v: f32 = v.into();
+    format_java_float!(v)
 }
 
 fn format_f32(v: f32) -> String {

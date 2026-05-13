@@ -1,6 +1,11 @@
 use std::ops::Range;
 
+#[cfg(feature = "float16")]
+use half::f16;
+
 use crate::arrow::array::cast::AsArray;
+#[cfg(feature = "float16")]
+use crate::arrow::array::types::Float16Type;
 use crate::arrow::array::types::{
     Date32Type, Decimal128Type, Float32Type, Float64Type, GenericBinaryType, GenericStringType,
     Int16Type, Int32Type, Int64Type, Int8Type, TimestampMicrosecondType, TimestampNanosecondType,
@@ -41,6 +46,13 @@ impl GetData<'_> for PrimitiveArray<Int32Type> {
 
 impl GetData<'_> for PrimitiveArray<Int64Type> {
     fn get_long(&self, row_index: usize, _field_name: &str) -> DeltaResult<Option<i64>> {
+        Ok(self.is_valid(row_index).then(|| self.value(row_index)))
+    }
+}
+
+#[cfg(feature = "float16")]
+impl GetData<'_> for PrimitiveArray<Float16Type> {
+    fn get_float16(&self, row_index: usize, _field_name: &str) -> DeltaResult<Option<f16>> {
         Ok(self.is_valid(row_index).then(|| self.value(row_index)))
     }
 }
@@ -295,7 +307,12 @@ impl<'a> GetData<'a> for RunArray<Int64Type> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "float16")]
+    use half::f16;
+
     use super::*;
+    #[cfg(feature = "float16")]
+    use crate::arrow::array::Float16Array;
     use crate::arrow::array::{
         BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
         LargeBinaryArray, LargeStringArray, PrimitiveArray,
@@ -344,6 +361,35 @@ mod tests {
         assert_eq!(array.get_long(0, "f").unwrap(), Some(i64::MAX));
         assert_eq!(array.get_long(1, "f").unwrap(), Some(i64::MIN));
         assert_eq!(array.get_long(2, "f").unwrap(), None);
+    }
+
+    #[cfg(feature = "float16")]
+    #[test]
+    fn test_get_float16() {
+        let array = Float16Array::from(vec![
+            Some(f16::from_f32(1.5)),
+            Some(f16::from_f32(-0.0)),
+            None,
+        ]);
+        assert_eq!(array.get_float16(0, "f").unwrap(), Some(f16::from_f32(1.5)));
+        assert_eq!(
+            array.get_float16(1, "f").unwrap(),
+            Some(f16::from_f32(-0.0))
+        );
+        assert_eq!(array.get_float16(2, "f").unwrap(), None);
+    }
+
+    #[cfg(feature = "float16")]
+    #[test]
+    fn test_get_float16_special_values() {
+        let array = Float16Array::from(vec![
+            Some(f16::NAN),
+            Some(f16::INFINITY),
+            Some(f16::NEG_INFINITY),
+        ]);
+        assert!(array.get_float16(0, "f").unwrap().unwrap().is_nan());
+        assert_eq!(array.get_float16(1, "f").unwrap(), Some(f16::INFINITY));
+        assert_eq!(array.get_float16(2, "f").unwrap(), Some(f16::NEG_INFINITY));
     }
 
     #[test]

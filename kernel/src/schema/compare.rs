@@ -452,6 +452,14 @@ mod tests {
     #[case::byte_to_long(PrimitiveType::Byte, PrimitiveType::Long, true)]
     #[case::short_to_integer(PrimitiveType::Short, PrimitiveType::Integer, true)]
     #[case::float_to_double(PrimitiveType::Float, PrimitiveType::Double, true)]
+    #[cfg_attr(
+        feature = "float16",
+        case::float16_to_float(PrimitiveType::Float16, PrimitiveType::Float, true)
+    )]
+    #[cfg_attr(
+        feature = "float16",
+        case::float16_to_double(PrimitiveType::Float16, PrimitiveType::Double, true)
+    )]
     #[case::timestamp_to_ntz(PrimitiveType::Timestamp, PrimitiveType::TimestampNtz, true)]
     fn stats_type_compatibility(
         #[case] source: PrimitiveType,
@@ -473,6 +481,25 @@ mod tests {
         // Cannot narrow
         assert!(matches!(
             DataType::DOUBLE.can_read_as(&DataType::FLOAT),
+            Err(Error::TypeMismatch)
+        ));
+    }
+
+    #[cfg(feature = "float16")]
+    #[test]
+    fn type_widening_float16() {
+        // float16 -> double
+        assert!(DataType::FLOAT16.can_read_as(&DataType::DOUBLE).is_ok());
+        // float16 -> float
+        assert!(DataType::FLOAT16.can_read_as(&DataType::FLOAT).is_ok());
+
+        // Cannot narrow
+        assert!(matches!(
+            DataType::DOUBLE.can_read_as(&DataType::FLOAT16),
+            Err(Error::TypeMismatch)
+        ));
+        assert!(matches!(
+            DataType::FLOAT.can_read_as(&DataType::FLOAT16),
             Err(Error::TypeMismatch)
         ));
     }

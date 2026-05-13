@@ -5,6 +5,8 @@ use itertools::Itertools;
 use tracing::debug;
 
 use crate::arrow::array::cast::AsArray;
+#[cfg(feature = "float16")]
+use crate::arrow::array::types::Float16Type;
 #[cfg(feature = "nanosecond-timestamps")]
 use crate::arrow::array::types::TimestampNanosecondType;
 use crate::arrow::array::types::{
@@ -466,6 +468,13 @@ impl ArrowEngineData {
                     .map(|a| a as _)
                     .or_else(|| Self::try_extract_with_ree(col))
                     .ok_or("long")
+            }
+            #[cfg(feature = "float16")]
+            &DataType::FLOAT16 => {
+                debug!("Pushing float16 array for {}", ColumnName::new(path));
+                col.as_primitive_opt::<Float16Type>()
+                    .map(|a| a as _)
+                    .ok_or("float16")
             }
             &DataType::FLOAT => {
                 debug!("Pushing float array for {}", ColumnName::new(path));

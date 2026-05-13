@@ -8,6 +8,8 @@ use delta_kernel::expressions::{
 };
 use delta_kernel::schema::{DataType, PrimitiveType};
 use delta_kernel::DeltaResult;
+#[cfg(feature = "float16")]
+use half::f16;
 
 use crate::expressions::{SharedExpression, SharedPredicate};
 use crate::handle::Handle;
@@ -305,6 +307,15 @@ pub extern "C" fn visit_expression_literal_byte(
     wrap_expression(state, Expression::literal(value))
 }
 
+#[cfg(feature = "float16")]
+#[no_mangle]
+pub extern "C" fn visit_expression_literal_float16(
+    state: &mut KernelExpressionVisitorState,
+    value: u16,
+) -> usize {
+    wrap_expression(state, Expression::literal(f16::from_bits(value)))
+}
+
 #[no_mangle]
 pub extern "C" fn visit_expression_literal_float(
     state: &mut KernelExpressionVisitorState,
@@ -465,12 +476,14 @@ pub(crate) enum NullTypeTag {
     /// WARNING: This variant MUST remain `= 12`. It is the only tag with special handling
     /// (precision/scale parameters), and C consumers key on the value `12` directly.
     Decimal = 12,
-    // Deliberately not feature gated, so timestamp_nanos number allocations are there even
+    // Deliberately not feature gated, so timestamp_nanos/float16 number allocations are there even
     // if the feature is disabled.
     /// EXPERIMENTAL. Null of type `timestamp_nanos` (nanoseconds since epoch, UTC-adjusted).
     TimestampNanos = 13,
     /// EXPERIMENTAL. Null of type `timestamp_nanos_ntz` (nanoseconds since epoch, no timezone).
     TimestampNanosNtz = 14,
+    /// EXPERIMENTAL. Null of type `float16` (16-bit IEEE 754).
+    Float16 = 15,
     /// Sentinel for non-primitive null types (struct, array, map, variant). Emitted by the
     /// kernel-to-engine visitor when the null's type is not a primitive. Engines that receive
     /// this tag should use opaque expressions or a schema visitor to obtain full type details.
@@ -500,6 +513,7 @@ impl TryFrom<u8> for NullTypeTag {
             12 => Ok(Self::Decimal),
             13 => Ok(Self::TimestampNanos),
             14 => Ok(Self::TimestampNanosNtz),
+            15 => Ok(Self::Float16),
             255 => Ok(Self::NonPrimitive),
             other => Err(delta_kernel::Error::generic(format!(
                 "Unrecognized null type tag: {other}"
@@ -521,6 +535,8 @@ impl NullTypeTag {
                 PrimitiveType::Short => (Self::Short, 0, 0),
                 PrimitiveType::Integer => (Self::Integer, 0, 0),
                 PrimitiveType::Long => (Self::Long, 0, 0),
+                #[cfg(feature = "float16")]
+                PrimitiveType::Float16 => (Self::Float16, 0, 0),
                 PrimitiveType::Float => (Self::Float, 0, 0),
                 PrimitiveType::Double => (Self::Double, 0, 0),
                 PrimitiveType::String => (Self::String, 0, 0),
@@ -553,6 +569,12 @@ impl NullTypeTag {
             Self::Short => Ok(DataType::SHORT),
             Self::Integer => Ok(DataType::INTEGER),
             Self::Long => Ok(DataType::LONG),
+            #[cfg(feature = "float16")]
+            Self::Float16 => Ok(DataType::FLOAT16),
+            #[cfg(not(feature = "float16"))]
+            Self::Float16 => Err(delta_kernel::Error::generic(
+                "Experimental Cargo feature `float16` not enabled",
+            )),
             Self::Float => Ok(DataType::FLOAT),
             Self::Double => Ok(DataType::DOUBLE),
             Self::String => Ok(DataType::STRING),
@@ -879,13 +901,14 @@ mod tests {
     #[case(12, NullTypeTag::Decimal)]
     #[case(13, NullTypeTag::TimestampNanos)]
     #[case(14, NullTypeTag::TimestampNanosNtz)]
+    #[case(15, NullTypeTag::Float16)]
     #[case(255, NullTypeTag::NonPrimitive)]
     fn try_from_u8_valid(#[case] value: u8, #[case] expected: NullTypeTag) {
         assert_eq!(NullTypeTag::try_from(value).unwrap(), expected);
     }
 
     #[rstest]
-    #[case(15)]
+    #[case(16)]
     #[case(42)]
     #[case(254)]
     fn try_from_u8_invalid(#[case] value: u8) {
@@ -911,7 +934,7 @@ mod tests {
     #[test]
     fn visit_null_unrecognized_tag_returns_error() {
         let mut state = KernelExpressionVisitorState::default();
-        assert!(visit_expression_literal_null_impl(&mut state, 15, 0, 0).is_err());
+        assert!(visit_expression_literal_null_impl(&mut state, 16, 0, 0).is_err());
     }
 
     #[test]
@@ -937,6 +960,8 @@ mod tests {
     #[case(DataType::DATE)]
     #[case(DataType::TIMESTAMP)]
     #[case(DataType::TIMESTAMP_NTZ)]
+    #[cfg_attr(feature = "nanosecond-timestamps", case(DataType::TIMESTAMP_NANOS))]
+    #[cfg_attr(feature = "float16", case(DataType::FLOAT16))]
     fn null_type_round_trips_through_tag_encoding(#[case] data_type: DataType) {
         let (tag, precision, scale) = NullTypeTag::from_data_type(&data_type);
         let mut state = KernelExpressionVisitorState::default();

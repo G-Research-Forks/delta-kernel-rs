@@ -131,6 +131,16 @@ pub struct EngineSchemaVisitor {
         metadata: &CStringMap,
     ),
 
+    #[cfg(feature = "float16")]
+    /// Visit a `float16` belonging to the list identified by `sibling_list_id`.
+    pub visit_float16: extern "C" fn(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        name: KernelStringSlice,
+        is_nullable: bool,
+        metadata: &CStringMap,
+    ),
+
     /// Visit a `float` belonging to the list identified by `sibling_list_id`.
     pub visit_float: extern "C" fn(
         data: *mut c_void,
@@ -344,6 +354,8 @@ fn visit_schema_impl(schema: &StructType, visitor: &mut EngineSchemaVisitor) -> 
             &DataType::INTEGER => call!(visit_integer),
             &DataType::SHORT => call!(visit_short),
             &DataType::BYTE => call!(visit_byte),
+            #[cfg(feature = "float16")]
+            &DataType::FLOAT16 => call!(visit_float16),
             &DataType::FLOAT => call!(visit_float),
             &DataType::DOUBLE => call!(visit_double),
             &DataType::BOOLEAN => call!(visit_boolean),

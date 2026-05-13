@@ -24,6 +24,8 @@ use crate::scan::data_skipping::stats_schema::{
 use crate::schema::validation::validate_iceberg_compat_v3_no_legacy_nested_id;
 pub(crate) use crate::schema::variant_utils::validate_variant_type_feature_support;
 use crate::schema::{schema_has_invariants, SchemaRef, StructField, StructType};
+#[cfg(feature = "float16")]
+use crate::table_features::validate_float16_feature_support;
 #[cfg(feature = "nanosecond-timestamps")]
 use crate::table_features::validate_timestamp_nanos_feature_support;
 use crate::table_features::{
@@ -202,6 +204,9 @@ impl TableConfiguration {
         #[cfg(feature = "nanosecond-timestamps")]
         validate_timestamp_nanos_feature_support(&table_config)?;
         validate_iceberg_compat_v3_no_legacy_nested_id(&table_config)?;
+
+        #[cfg(feature = "float16")]
+        validate_float16_feature_support(&table_config)?;
 
         Ok(table_config)
     }
@@ -1471,6 +1476,40 @@ mod test {
         assert!(
             result.is_ok(),
             "Should succeed when TIMESTAMP_NTZ is used with required features"
+        );
+    }
+
+    #[cfg(feature = "float16")]
+    #[test]
+    fn test_float16_validation_integration() {
+        // Schema with FLOAT16 column
+        let schema = Arc::new(StructType::new_unchecked([StructField::nullable(
+            "f16",
+            DataType::FLOAT16,
+        )]));
+        let metadata = Metadata::try_new(None, None, schema, vec![], 0, HashMap::new()).unwrap();
+
+        let protocol_without_float16_features =
+            Protocol::try_new_modern(TableFeature::EMPTY_LIST, TableFeature::EMPTY_LIST).unwrap();
+
+        let protocol_with_float16_features =
+            Protocol::try_new_modern([TableFeature::Float16], [TableFeature::Float16]).unwrap();
+
+        let table_root = Url::try_from("file:///").unwrap();
+
+        let result = TableConfiguration::try_new(
+            metadata.clone(),
+            protocol_without_float16_features,
+            table_root.clone(),
+            0,
+        );
+        assert_result_error_with_message(result, "Unsupported: Table contains FLOAT16 columns but does not have the required 'float16' feature in reader and writer features");
+
+        let result =
+            TableConfiguration::try_new(metadata, protocol_with_float16_features, table_root, 0);
+        assert!(
+            result.is_ok(),
+            "Should succeed when FLOAT16 is used with required features"
         );
     }
 

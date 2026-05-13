@@ -13,6 +13,8 @@ use crate::arrow::array::{
     LargeStringArray, PrimitiveArray, RecordBatch, StringArray, StringViewArray, StructArray,
 };
 use crate::arrow::compute::kernels::aggregate::{max, max_string, min, min_string};
+#[cfg(feature = "float16")]
+use crate::arrow::datatypes::Float16Type;
 use crate::arrow::datatypes::{
     ArrowPrimitiveType, DataType, Date32Type, Date64Type, Decimal128Type, Field, Float32Type,
     Float64Type, Int16Type, Int32Type, Int64Type, Int8Type, TimeUnit, TimestampMicrosecondType,
@@ -293,6 +295,8 @@ fn compute_leaf_agg(column: &ArrayRef, agg: Agg) -> DeltaResult<Option<ArrayRef>
         DataType::UInt64 => agg_primitive::<UInt64Type>(column, agg),
 
         // Float types
+        #[cfg(feature = "float16")]
+        DataType::Float16 => agg_primitive::<Float16Type>(column, agg),
         DataType::Float32 => agg_primitive::<Float32Type>(column, agg),
         DataType::Float64 => agg_primitive::<Float64Type>(column, agg),
 

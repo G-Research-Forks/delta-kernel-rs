@@ -221,12 +221,12 @@ is the source of truth. Key concepts:
 
 **Table features**:
 
-- Writer: `appendOnly`, `invariants`, `checkConstraints`, `generatedColumns`,
+- Writer: `appendOnly`, `invariants`, `checkConstraints`, `float16`, `generatedColumns`,
   `allowColumnDefaults`, `changeDataFeed`, `identityColumns`, `rowTracking`,
   `domainMetadata`, `icebergCompatV1`, `icebergCompatV2`, `icebergCompatV3`,
   `clustering`, `inCommitTimestamp`
 - Reader + writer: `catalogManaged`, `catalogOwned-preview`, `columnMapping`,
-  `deletionVectors`, `timestampNtz`, `v2Checkpoint`, `vacuumProtocolCheck`,
+  `deletionVectors`, `float16`, `timestampNtz`, `v2Checkpoint`, `vacuumProtocolCheck`,
   `variantType`, `variantType-preview`, `typeWidening`
 
 Keep this list updated when new protocol features are added to kernel.

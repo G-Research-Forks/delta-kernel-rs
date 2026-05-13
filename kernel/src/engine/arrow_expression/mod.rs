@@ -92,6 +92,8 @@ impl Scalar {
             Long(val) => append_val_n_as!(array::Int64Builder, *val),
             Short(val) => append_val_n_as!(array::Int16Builder, *val),
             Byte(val) => append_val_n_as!(array::Int8Builder, *val),
+            #[cfg(feature = "float16")]
+            Float16(val) => append_val_n_as!(array::Float16Builder, *val),
             Float(val) => append_val_n_as!(array::Float32Builder, *val),
             Double(val) => append_val_n_as!(array::Float64Builder, *val),
             String(val) => append_val_as!(array::StringBuilder, val),
@@ -176,6 +178,8 @@ impl Scalar {
             DataType::LONG => append_nulls_as!(array::Int64Builder),
             DataType::SHORT => append_nulls_as!(array::Int16Builder),
             DataType::BYTE => append_nulls_as!(array::Int8Builder),
+            #[cfg(feature = "float16")]
+            DataType::FLOAT16 => append_nulls_as!(array::Float16Builder),
             DataType::FLOAT => append_nulls_as!(array::Float32Builder),
             DataType::DOUBLE => append_nulls_as!(array::Float64Builder),
             DataType::STRING => append_nulls_as!(array::StringBuilder),

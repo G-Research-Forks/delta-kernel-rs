@@ -766,6 +766,7 @@ dependencies = [
  "crc",
  "criterion",
  "futures",
+ "half",
  "hdfs-native",
  "hdfs-native-object-store",
  "indexmap",
@@ -1316,6 +1317,7 @@ dependencies = [
  "cbindgen",
  "delta-kernel-unity-catalog",
  "delta_kernel_ffi_macros",
+ "half",
  "itertools 0.14.0",
  "libc",
  "paste",
@@ -1787,6 +1789,7 @@ dependencies = [
  "cfg-if",
  "crunchy",
  "num-traits",
+ "serde",
  "zerocopy",
 ]
 
@@ -4107,6 +4110,7 @@ name = "test_utils"
 version = "0.22.0"
 dependencies = [
  "buoyant_kernel",
+ "half",
  "itertools 0.14.0",
  "rstest",
  "rstest_reuse",
