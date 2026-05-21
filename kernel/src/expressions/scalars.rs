@@ -1280,6 +1280,61 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "float16")]
+    #[test]
+    fn test_float16_parse() {
+        let assert_float16_eq = |raw, expected: f16| {
+            let scalar = PrimitiveType::Float16.parse_scalar(raw).unwrap();
+            assert_eq!(scalar, Scalar::Float16(expected));
+        };
+        assert_float16_eq("1.5", f16::from_f32(1.5));
+        assert_float16_eq("-2.25", f16::from_f32(-2.25));
+        assert_float16_eq("0", f16::from_f32(0.0));
+        assert_float16_eq("inf", f16::INFINITY);
+        assert_float16_eq("-inf", f16::NEG_INFINITY);
+
+        // Empty string parses as null
+        assert_eq!(
+            PrimitiveType::Float16.parse_scalar("").unwrap(),
+            Scalar::Null(DataType::FLOAT16),
+        );
+
+        // NaN parses, but NaN != NaN, so verify via is_nan()
+        let Scalar::Float16(parsed) = PrimitiveType::Float16.parse_scalar("NaN").unwrap() else {
+            panic!("Expected Float16 scalar");
+        };
+        assert!(parsed.is_nan());
+
+        // Unparseable input fails
+        PrimitiveType::Float16
+            .parse_scalar("not a number")
+            .expect_err("should have failed");
+    }
+
+    #[cfg(feature = "float16")]
+    #[test]
+    fn test_partial_eq_cmp_float16() {
+        test_partial_eq(
+            Scalar::Float16(f16::from_f32(1.0)),
+            Scalar::Float16(f16::from_f32(2.0)),
+            DataType::FLOAT16,
+        );
+        test_partial_cmp(
+            Scalar::Float16(f16::from_f32(1.0)),
+            Scalar::Float16(f16::from_f32(2.0)),
+            DataType::FLOAT16,
+        );
+
+        let nan = Scalar::Float16(f16::NAN);
+        let one = Scalar::Float16(f16::from_f32(1.0));
+        assert_eq!(nan.logical_partial_cmp(&nan), None);
+        assert_eq!(nan.logical_partial_cmp(&one), None);
+        assert_eq!(one.logical_partial_cmp(&nan), None);
+        assert!(!nan.logical_eq(&nan));
+        assert!(!nan.logical_eq(&one));
+        assert!(!one.logical_eq(&nan));
+    }
+
     #[test]
     fn test_hashmap_conversion() -> DeltaResult<()> {
         // Create a simple HashMap with string keys and integer values
