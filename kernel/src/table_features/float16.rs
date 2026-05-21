@@ -56,7 +56,7 @@ mod tests {
     fn test_float16_feature_validation() {
         let schema_with = StructType::new_unchecked([
             StructField::new("id", DataType::INTEGER, false),
-            StructField::new("ts", DataType::Primitive(PrimitiveType::Float16), true),
+            StructField::new("value", DataType::Primitive(PrimitiveType::Float16), true),
         ]);
         let schema_without = StructType::new_unchecked([
             StructField::new("id", DataType::INTEGER, false),
@@ -67,7 +67,7 @@ mod tests {
             StructField::new(
                 "nested",
                 DataType::Struct(Box::new(StructType::new_unchecked([StructField::new(
-                    "inner_ts",
+                    "inner_value",
                     DataType::Primitive(PrimitiveType::Float16),
                     true,
                 )]))),
