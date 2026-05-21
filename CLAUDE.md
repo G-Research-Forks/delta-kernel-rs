@@ -221,7 +221,7 @@ is the source of truth. Key concepts:
 
 **Table features**:
 
-- Writer: `appendOnly`, `invariants`, `checkConstraints`, `float16`, `generatedColumns`,
+- Writer: `appendOnly`, `invariants`, `checkConstraints`, `generatedColumns`,
   `allowColumnDefaults`, `changeDataFeed`, `identityColumns`, `rowTracking`,
   `domainMetadata`, `icebergCompatV1`, `icebergCompatV2`, `icebergCompatV3`,
   `clustering`, `inCommitTimestamp`
