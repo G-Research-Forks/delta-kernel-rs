@@ -1523,6 +1523,24 @@ fn timestamp_nanos() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[cfg(feature = "float16")]
+#[test]
+fn float16() -> Result<(), Box<dyn std::error::Error>> {
+    let expected = vec![
+        "+----+-------+",
+        "| id | f16   |",
+        "+----+-------+",
+        "| 0  | 1.5   |",
+        "| 1  | -2.25 |",
+        "| 2  | 0.125 |",
+        "| 3  | NaN   |",
+        "| 4  |       |",
+        "+----+-------+",
+    ];
+    read_table_data_str("./tests/data/float16/", None, None, expected)?;
+    Ok(())
+}
+
 #[test]
 fn type_widening_basic() -> Result<(), Box<dyn std::error::Error>> {
     let expected = vec![
