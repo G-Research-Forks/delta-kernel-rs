@@ -10,8 +10,6 @@ use delta_kernel::expressions::{
     UnaryExpression, UnaryExpressionOp, UnaryPredicate, UnaryPredicateOp, VariadicExpression,
     VariadicExpressionOp,
 };
-#[cfg(feature = "float16")]
-use half::f16;
 
 use super::kernel_visitor::NullTypeTag;
 use crate::expressions::{
@@ -80,7 +78,8 @@ pub struct EngineExpressionVisitor {
     pub visit_literal_byte: VisitLiteralFn<i8>,
     #[cfg(feature = "float16")]
     /// Visit a 16bit `float` belonging to the list identified by `sibling_list_id`.
-    pub visit_literal_float16: VisitLiteralFn<f16>,
+    /// f16 values are represented as u16 in the C API.
+    pub visit_literal_float16: VisitLiteralFn<u16>,
     /// Visit a 32bit `float` belonging to the list identified by `sibling_list_id`.
     pub visit_literal_float: VisitLiteralFn<f32>,
     /// Visit a 64bit `double` belonging to the list identified by `sibling_list_id`.
@@ -585,7 +584,12 @@ fn visit_expression_scalar(
         Scalar::Byte(val) => call!(visitor, visit_literal_byte, sibling_list_id, *val),
         Scalar::Float(val) => call!(visitor, visit_literal_float, sibling_list_id, *val),
         #[cfg(feature = "float16")]
-        Scalar::Float16(val) => call!(visitor, visit_literal_float16, sibling_list_id, *val),
+        Scalar::Float16(val) => call!(
+            visitor,
+            visit_literal_float16,
+            sibling_list_id,
+            val.to_bits()
+        ),
         Scalar::Double(val) => {
             call!(visitor, visit_literal_double, sibling_list_id, *val)
         }
