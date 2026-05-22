@@ -476,8 +476,8 @@ pub(crate) enum NullTypeTag {
     /// WARNING: This variant MUST remain `= 12`. It is the only tag with special handling
     /// (precision/scale parameters), and C consumers key on the value `12` directly.
     Decimal = 12,
-    // Deliberately not feature gated, so timestamp_nanos/float16 number allocations are there even
-    // if the feature is disabled.
+    // Deliberately not feature gated, so timestamp_nanos/float16 number allocations are there
+    // even if the feature is disabled.
     /// EXPERIMENTAL. Null of type `timestamp_nanos` (nanoseconds since epoch, UTC-adjusted).
     TimestampNanos = 13,
     /// EXPERIMENTAL. Null of type `timestamp_nanos_ntz` (nanoseconds since epoch, no timezone).

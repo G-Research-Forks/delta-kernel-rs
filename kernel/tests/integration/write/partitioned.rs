@@ -56,7 +56,8 @@ async fn test_write_partitioned_normal_values_roundtrip(
     .await?;
     assert_eq!(
         snapshot.table_configuration().partition_columns().len(),
-        13 + 2 * cfg!(feature = "nanosecond-timestamps") as usize + cfg!(feature = "float16") as usize
+        13 + 2 * cfg!(feature = "nanosecond-timestamps") as usize
+            + cfg!(feature = "float16") as usize
     );
 
     // ===== Step 2: Validate add.path structure in the commit log JSON. =====
