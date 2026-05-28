@@ -597,6 +597,16 @@ impl TryFromArrow<&ArrowDataType> for DataType {
             {
                 Ok(DataType::TIMESTAMP_NANOS)
             }
+            // Fall back to converting nanosecond timestamps to microsecond when the
+            // nanosecond-timestamp feature is not enabled.
+            #[cfg(not(feature = "nanosecond-timestamps"))]
+            ArrowDataType::Timestamp(TimeUnit::Nanosecond, None) => Ok(DataType::TIMESTAMP_NTZ),
+            #[cfg(not(feature = "nanosecond-timestamps"))]
+            ArrowDataType::Timestamp(TimeUnit::Nanosecond, Some(tz))
+                if tz.eq_ignore_ascii_case("utc") =>
+            {
+                Ok(DataType::TIMESTAMP)
+            }
             ArrowDataType::Struct(fields) => DataType::try_struct_type_from_results(
                 fields.iter().map(|field| field.as_ref().try_into_kernel()),
             )
