@@ -76,6 +76,28 @@ async fn test_append_timestamp_nanos() -> Result<(), Box<dyn std::error::Error>>
     .await
 }
 
+#[cfg(feature = "nanosecond-timestamps")]
+#[tokio::test]
+async fn test_append_timestamp_nanos_ntz() -> Result<(), Box<dyn std::error::Error>> {
+    let timestamp_values = vec![
+        0i64,
+        1634567890123456000i64,
+        1634567950654321000i64,
+        1672531200000000000i64,
+        253402300799999999i64,
+        -62135596800000000i64,
+    ];
+
+    test_append_timestamp(
+        DataType::TIMESTAMP_NANOS_NTZ,
+        "ts_nanos_ntz",
+        "test_table_timestamp_nanos_ntz",
+        "timestampNanos",
+        Arc::new(TimestampNanosecondArray::from(timestamp_values)),
+    )
+    .await
+}
+
 async fn test_append_timestamp(
     dtype: DataType,
     col: &str,

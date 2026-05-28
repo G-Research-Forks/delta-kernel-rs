@@ -1746,6 +1746,9 @@ pub enum PrimitiveType {
     #[cfg(feature = "nanosecond-timestamps")]
     #[serde(rename = "timestamp_nanos")]
     TimestampNanos,
+    #[cfg(feature = "nanosecond-timestamps")]
+    #[serde(rename = "timestamp_nanos_ntz")]
+    TimestampNanosNtz,
     #[serde(serialize_with = "serialize_decimal", untagged)]
     Decimal(DecimalType),
 }
@@ -1854,6 +1857,8 @@ impl<'de> serde::Deserialize<'de> for PrimitiveType {
             "timestamp_ntz" => Ok(PrimitiveType::TimestampNtz),
             #[cfg(feature = "nanosecond-timestamps")]
             "timestamp_nanos" => Ok(PrimitiveType::TimestampNanos),
+            #[cfg(feature = "nanosecond-timestamps")]
+            "timestamp_nanos_ntz" => Ok(PrimitiveType::TimestampNanosNtz),
             decimal_str if decimal_str.starts_with("decimal(") && decimal_str.ends_with(')') => {
                 // Parse decimal type
                 let mut parts = decimal_str[8..decimal_str.len() - 1].split(',');
@@ -1905,6 +1910,8 @@ impl Display for PrimitiveType {
             PrimitiveType::TimestampNtz => write!(f, "timestamp_ntz"),
             #[cfg(feature = "nanosecond-timestamps")]
             PrimitiveType::TimestampNanos => write!(f, "timestamp_nanos"),
+            #[cfg(feature = "nanosecond-timestamps")]
+            PrimitiveType::TimestampNanosNtz => write!(f, "timestamp_nanos_ntz"),
             PrimitiveType::Decimal(dtype) => {
                 write!(f, "decimal({},{})", dtype.precision(), dtype.scale())
             }
@@ -2041,6 +2048,8 @@ impl DataType {
     pub const TIMESTAMP_NTZ: Self = DataType::Primitive(PrimitiveType::TimestampNtz);
     #[cfg(feature = "nanosecond-timestamps")]
     pub const TIMESTAMP_NANOS: Self = DataType::Primitive(PrimitiveType::TimestampNanos);
+    #[cfg(feature = "nanosecond-timestamps")]
+    pub const TIMESTAMP_NANOS_NTZ: Self = DataType::Primitive(PrimitiveType::TimestampNanosNtz);
     /// Create a new decimal type with the given precision and scale.
     pub fn decimal(precision: u8, scale: u8) -> DeltaResult<Self> {
         Ok(PrimitiveType::decimal(precision, scale)?.into())

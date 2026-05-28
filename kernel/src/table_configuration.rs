@@ -1381,12 +1381,12 @@ mod test {
     }
 
     #[cfg(feature = "nanosecond-timestamps")]
-    #[test]
-    fn test_timestamp_nanos_validation_integration() {
-        // Schema with TIMESTAMP_NANOS column
+    #[rstest::rstest]
+    #[case::nanos(DataType::TIMESTAMP_NANOS)]
+    #[case::nanos_ntz(DataType::TIMESTAMP_NANOS_NTZ)]
+    fn test_timestamp_nanos_validation_integration(#[case] ts_type: DataType) {
         let schema = Arc::new(StructType::new_unchecked([StructField::nullable(
-            "ts",
-            DataType::TIMESTAMP_NANOS,
+            "ts", ts_type,
         )]));
         let metadata = Metadata::try_new(None, None, schema, vec![], 0, HashMap::new()).unwrap();
 
@@ -1414,7 +1414,7 @@ mod test {
             table_root.clone(),
             0,
         );
-        assert_result_error_with_message(result, "Unsupported: Table contains TIMESTAMP_NANOS columns but does not have the required 'timestampNanos' feature in reader and writer features");
+        assert_result_error_with_message(result, "Unsupported: Table contains TIMESTAMP_NANOS or TIMESTAMP_NANOS_NTZ columns but does not have the required 'timestampNanos' feature in reader and writer features");
 
         let result = TableConfiguration::try_new(
             metadata,
@@ -1424,7 +1424,7 @@ mod test {
         );
         assert!(
             result.is_ok(),
-            "Should succeed when TIMESTAMP_NANOS is used with required features"
+            "Should succeed when nanosecond timestamps are used with required features"
         );
     }
 
