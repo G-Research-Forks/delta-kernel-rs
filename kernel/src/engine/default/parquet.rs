@@ -601,7 +601,6 @@ mod tests {
     use url::Url;
 
     use super::*;
-
     #[cfg(feature = "nanosecond-timestamps")]
     use crate::arrow::array::TimestampNanosecondArray;
     use crate::arrow::array::{
