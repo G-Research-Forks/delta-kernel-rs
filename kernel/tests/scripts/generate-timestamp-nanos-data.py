@@ -105,8 +105,8 @@ def write_log(log_dir: Path, file_name: str, file_size: int) -> None:
         "protocol": {
             "minReaderVersion": 3,
             "minWriterVersion": 7,
-            "readerFeatures": ["timestampNanos"],
-            "writerFeatures": ["timestampNanos"],
+            "readerFeatures": ["timestampNanos", "timestampNtz"],
+            "writerFeatures": ["timestampNanos", "timestampNtz"],
         }
     }
     metadata = {

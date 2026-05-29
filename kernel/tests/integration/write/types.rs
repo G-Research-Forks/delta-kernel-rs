@@ -48,7 +48,7 @@ async fn test_append_timestamp_ntz() -> Result<(), Box<dyn std::error::Error>> {
         DataType::TIMESTAMP_NTZ,
         "ts_ntz",
         "test_table_timestamp_ntz",
-        "timestampNtz",
+        vec!["timestampNtz"],
         Arc::new(TimestampMicrosecondArray::from(timestamp_values)),
     )
     .await
@@ -70,7 +70,7 @@ async fn test_append_timestamp_nanos() -> Result<(), Box<dyn std::error::Error>>
         DataType::TIMESTAMP_NANOS,
         "ts_nanos",
         "test_table_timestamp_nanos",
-        "timestampNanos",
+        vec!["timestampNanos", "timestampNtz"],
         Arc::new(TimestampNanosecondArray::from(timestamp_values).with_timezone("UTC")),
     )
     .await
@@ -92,7 +92,7 @@ async fn test_append_timestamp_nanos_ntz() -> Result<(), Box<dyn std::error::Err
         DataType::TIMESTAMP_NANOS_NTZ,
         "ts_nanos_ntz",
         "test_table_timestamp_nanos_ntz",
-        "timestampNanos",
+        vec!["timestampNanos", "timestampNtz"],
         Arc::new(TimestampNanosecondArray::from(timestamp_values)),
     )
     .await
@@ -102,7 +102,7 @@ async fn test_append_timestamp(
     dtype: DataType,
     col: &str,
     path: &str,
-    feature: &str,
+    features: Vec<&str>,
     timestamp_values: ArrayRef,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // setup tracing
@@ -119,8 +119,8 @@ async fn test_append_timestamp(
         schema.clone(),
         &[],
         true,
-        vec![feature],
-        vec![feature],
+        features.clone(),
+        features,
     )
     .await?;
 

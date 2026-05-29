@@ -1401,8 +1401,14 @@ mod test {
         let protocol_with_timestamp_nanos_features = Protocol::try_new(
             3,
             7,
-            Some([TableFeature::TimestampNanos]),
-            Some([TableFeature::TimestampNanos]),
+            Some([
+                TableFeature::TimestampNanos,
+                TableFeature::TimestampWithoutTimezone,
+            ]),
+            Some([
+                TableFeature::TimestampNanos,
+                TableFeature::TimestampWithoutTimezone,
+            ]),
         )
         .unwrap();
 
@@ -1414,7 +1420,7 @@ mod test {
             table_root.clone(),
             0,
         );
-        assert_result_error_with_message(result, "Unsupported: Table contains TIMESTAMP_NANOS or TIMESTAMP_NANOS_NTZ columns but does not have the required 'timestampNanos' feature in reader and writer features");
+        assert_result_error_with_message(result, "Unsupported: Table contains TIMESTAMP_NANOS or TIMESTAMP_NANOS_NTZ columns but does not have the required 'timestampNanos' and 'timestampNtz' features in reader and writer features");
 
         let result = TableConfiguration::try_new(
             metadata,

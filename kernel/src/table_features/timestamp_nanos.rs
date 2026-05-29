@@ -1,23 +1,26 @@
 //! Validation for TIMESTAMP_NANOS and TIMESTAMP_NANOS_NTZ feature support
 
+use std::borrow::Cow;
+
 use super::TableFeature;
 use crate::schema::{PrimitiveType, Schema};
 use crate::table_configuration::TableConfiguration;
 use crate::transforms::SchemaTransform;
 use crate::utils::require;
-use crate::{DeltaResult, Error, transform_output_type};
-
-use std::borrow::Cow;
+use crate::{transform_output_type, DeltaResult, Error};
 
 /// Validates that if a table schema contains TIMESTAMP_NANOS or TIMESTAMP_NANOS_NTZ columns,
-/// the table must have the TimestampNanos feature in both reader and writer features.
+/// the table must have the TimestampNanos and TimestampNtz features in both reader and writer
+/// features.
 pub(crate) fn validate_timestamp_nanos_feature_support(tc: &TableConfiguration) -> DeltaResult<()> {
     let protocol = tc.protocol();
-    if !protocol.has_table_feature(&TableFeature::TimestampNanos) {
+    if !protocol.has_table_feature(&TableFeature::TimestampNanos)
+        || !protocol.has_table_feature(&TableFeature::TimestampWithoutTimezone)
+    {
         require!(
             !schema_contains_timestamp_nanos(&tc.logical_schema()),
             Error::unsupported(
-                "Table contains TIMESTAMP_NANOS or TIMESTAMP_NANOS_NTZ columns but does not have the required 'timestampNanos' feature in reader and writer features"
+                "Table contains TIMESTAMP_NANOS or TIMESTAMP_NANOS_NTZ columns but does not have the required 'timestampNanos' and 'timestampNtz' features in reader and writer features"
             )
         );
     }
@@ -83,8 +86,14 @@ mod tests {
         let protocol_with_features = Protocol::try_new(
             3,
             7,
-            Some([TableFeature::TimestampNanos]),
-            Some([TableFeature::TimestampNanos]),
+            Some([
+                TableFeature::TimestampNanos,
+                TableFeature::TimestampWithoutTimezone,
+            ]),
+            Some([
+                TableFeature::TimestampNanos,
+                TableFeature::TimestampWithoutTimezone,
+            ]),
         )
         .unwrap();
 
@@ -96,13 +105,35 @@ mod tests {
         )
         .unwrap();
 
-        assert_schema_feature_validation(
-            &schema_with_timestamp_nanos,
-            &schema_without_timestamp_nanos,
-            &protocol_with_features,
-            &protocol_without_features,
-            &[&nested_schema_with],
-            "Table contains TIMESTAMP_NANOS or TIMESTAMP_NANOS_NTZ columns but does not have the required 'timestampNanos' feature in reader and writer features",
-        );
+        let protocol_without_nanos = Protocol::try_new(
+            3,
+            7,
+            Some([TableFeature::TimestampWithoutTimezone]),
+            Some([TableFeature::TimestampWithoutTimezone]),
+        )
+        .unwrap();
+
+        let protocol_without_ntz = Protocol::try_new(
+            3,
+            7,
+            Some([TableFeature::TimestampNanos]),
+            Some([TableFeature::TimestampNanos]),
+        )
+        .unwrap();
+
+        for protocol in &[
+            protocol_without_features,
+            protocol_without_nanos,
+            protocol_without_ntz,
+        ] {
+            assert_schema_feature_validation(
+                &schema_with_timestamp_nanos,
+                &schema_without_timestamp_nanos,
+                &protocol_with_features,
+                protocol,
+                &[&nested_schema_with],
+                "Table contains TIMESTAMP_NANOS or TIMESTAMP_NANOS_NTZ columns but does not have the required 'timestampNanos' and 'timestampNtz' features in reader and writer features",
+            );
+        }
     }
 }

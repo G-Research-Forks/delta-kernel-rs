@@ -29,6 +29,10 @@ fn assert_timestamp_nanos_protocol(snapshot: &Snapshot) {
         table_config.is_feature_supported(&TableFeature::TimestampNanos),
         "timestampNanos feature should be supported"
     );
+    assert!(
+        table_config.is_feature_supported(&TableFeature::TimestampWithoutTimezone),
+        "timestampNtz feature should be supported"
+    );
     let protocol = table_config.protocol();
     assert!(
         protocol.min_reader_version() >= TABLE_FEATURES_MIN_READER_VERSION,
@@ -142,6 +146,10 @@ fn test_create_table_timestamp_nanos_and_variant(
     assert!(
         table_config.is_feature_supported(&TableFeature::TimestampNanos),
         "timestampNanos feature should be supported"
+    );
+    assert!(
+        table_config.is_feature_supported(&TableFeature::TimestampWithoutTimezone),
+        "timestampNtz feature should be supported"
     );
     assert!(
         table_config.is_feature_supported(&TableFeature::VariantType),
