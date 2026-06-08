@@ -123,7 +123,7 @@ async fn test_append_timestamp(
     )
     .await?;
 
-    let snapshot = Snapshot::builder_for(table_url.clone()).build(&engine)?;
+    let _snapshot = Snapshot::builder_for(table_url.clone()).build(&engine)?;
     let mut txn = test_utils::load_and_begin_transaction(table_url.clone(), &engine)?
         .with_engine_info("default engine");
 

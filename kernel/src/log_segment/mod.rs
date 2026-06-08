@@ -1636,6 +1636,7 @@ fn validate_end_version(
 ///
 /// 1. If `ascending_commit_files` is non-empty, `latest_commit_file` must be `Some`.
 /// 2. If `latest_commit_file` is `Some`, its version must equal `effective_version`.
+#[allow(dead_code)]
 fn validate_latest_commit_file(
     listed: &LogSegmentFiles,
     effective_version: Version,

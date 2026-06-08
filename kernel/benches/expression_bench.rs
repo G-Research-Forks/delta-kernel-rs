@@ -16,6 +16,7 @@
 use std::hint::black_box;
 use std::sync::Arc;
 
+use buoyant_kernel as delta_kernel;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use delta_kernel::arrow::array::{
     ArrayRef, BooleanBuilder, Float64Builder, Int32Builder, StringBuilder, StructArray,

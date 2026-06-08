@@ -19,6 +19,7 @@
 
 use std::sync::Arc;
 
+use buoyant_kernel as delta_kernel;
 use criterion::{criterion_group, criterion_main, Criterion};
 use delta_kernel::engine::default::executor::tokio::TokioBackgroundExecutor;
 use delta_kernel::engine::default::{DefaultEngine, DefaultEngineBuilder};
