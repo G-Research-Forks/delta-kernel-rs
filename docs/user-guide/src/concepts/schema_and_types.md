@@ -30,7 +30,7 @@ The `DataType` enum represents all types supported by the Delta protocol:
 Decimals have a precision (1 to 38 inclusive) and a scale (0 to precision inclusive):
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::DeltaResult;
 # use delta_kernel::schema::DataType;
 # fn main() -> DeltaResult<()> {
@@ -46,7 +46,7 @@ let price_type = DataType::decimal(18, 2)?;
 An ordered sequence of elements, all of the same type:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::schema::{ArrayType, DataType};
 // Array of nullable strings
 let array_type = DataType::from(ArrayType::new(DataType::STRING, true));
@@ -59,7 +59,7 @@ The `contains_null` parameter indicates whether elements can be null.
 A collection of key-value pairs:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::schema::{DataType, MapType};
 // Map from string keys to nullable integer values
 let map_type = DataType::from(MapType::new(DataType::STRING, DataType::INTEGER, true));
@@ -73,7 +73,7 @@ can be null.
 A named collection of fields (see [Schemas](#schemas) below). Structs can be nested:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::schema::{DataType, StructField, StructType};
 # use delta_kernel::DeltaResult;
 # fn main() -> DeltaResult<()> {
@@ -97,7 +97,7 @@ A semi-structured type that can hold any value. The physical representation uses
 with `metadata` and `value` fields (both binary). To create an unshredded variant column:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::schema::DataType;
 let variant_type = DataType::unshredded_variant();
 ```
@@ -110,7 +110,7 @@ aliases `Schema` and `SchemaRef` (`Arc<StructType>`) are used throughout the API
 ### Creating a schema
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::DeltaResult;
 # use delta_kernel::schema::{DataType, StructField, StructType};
 # fn main() -> DeltaResult<()> {
@@ -129,7 +129,7 @@ let schema = StructType::try_new([
 `StructType::builder()` provides a builder for incremental construction:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::DeltaResult;
 # use delta_kernel::schema::{DataType, StructField, StructType};
 # fn main() -> DeltaResult<()> {
@@ -209,7 +209,7 @@ supports strings, numbers (`i64`), booleans, and arbitrary JSON.
 Every `Snapshot` exposes the table's schema:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;
 # use delta_kernel::{DeltaResult, Snapshot};

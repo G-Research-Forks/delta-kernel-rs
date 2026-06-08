@@ -18,7 +18,7 @@ is to use the `column_expr!` macro for column references and `Scalar` for litera
 ### Comparison operators
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 use delta_kernel::expressions::{column_expr, Predicate, Scalar};
 
 // age < 30
@@ -58,7 +58,7 @@ Each constructor takes `impl Into<Expression>` for both arguments, so you can pa
 Use `and`, `or`, and `not` to build compound predicates:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 use delta_kernel::expressions::{column_expr, Predicate, Scalar};
 
 // age >= 18 AND age < 65
@@ -82,7 +82,7 @@ let pred = Predicate::not(
 For combining more than two predicates, use `and_from` or `or_from`:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 use delta_kernel::expressions::{column_expr, Predicate, Scalar};
 
 // age >= 18 AND country == "US" AND active == true
@@ -96,7 +96,7 @@ let pred = Predicate::and_from([
 ### NULL checks
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 use delta_kernel::expressions::{column_expr, Predicate};
 
 // email IS NULL
@@ -111,7 +111,7 @@ let pred = Predicate::is_not_null(column_expr!("email"));
 The `column_expr!` macro supports dot-separated paths for nested struct fields:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 use delta_kernel::expressions::{column_expr, Predicate, Scalar};
 
 // address.city == "Seattle"
@@ -126,7 +126,7 @@ let pred = Predicate::eq(
 You can also build predicates using method syntax on `Expression`:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 use delta_kernel::expressions::{column_expr, Scalar};
 
 // age < 30
@@ -144,7 +144,7 @@ let pred = column_expr!("email").is_not_null();
 Pass the predicate to `ScanBuilder::with_predicate`:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use std::sync::Arc;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;
@@ -221,7 +221,7 @@ If your compute engine performs its own data skipping, you can tell Kernel to sk
 statistics altogether. This avoids the cost of parsing statistics from checkpoint files.
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;
 # use delta_kernel::{DeltaResult, Snapshot};
@@ -254,7 +254,7 @@ To receive pre-parsed statistics (min/max values, null counts, row counts) for e
 in your scan metadata, call `include_all_stats_columns()`:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;
 # use delta_kernel::{DeltaResult, Snapshot};
@@ -284,7 +284,7 @@ additional pruning logic.
 To receive statistics for only a subset of columns, call `with_stats_columns`:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;
 # use delta_kernel::expressions::ColumnName;

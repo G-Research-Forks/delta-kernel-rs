@@ -9,7 +9,7 @@ Use `Schema::project()` to create a schema containing only the columns you want,
 pass it to `ScanBuilder::with_schema()`:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use std::sync::Arc;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;
@@ -51,7 +51,7 @@ information about each row's origin. Add them to your scan schema with
 `Schema::add_metadata_column()`:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use std::sync::Arc;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;

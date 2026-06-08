@@ -10,7 +10,7 @@ table, writes data, and reads it back, see
 The `create_table` function returns a builder that you configure and then commit:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use std::sync::Arc;
 # use delta_kernel::committer::FileSystemCommitter;
 # use delta_kernel::engine::default::DefaultEngine;
@@ -47,7 +47,7 @@ version 0 of the table, producing the initial Protocol and Metadata actions.
 Schemas are built from `StructField`s, each with a name, data type, and nullability:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::DeltaResult;
 # fn example() -> DeltaResult<()> {
 use std::sync::Arc;
@@ -92,7 +92,7 @@ For the full list of supported data types, see [Schemas and Data Types](../conce
 You can set custom application properties on the table:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use std::sync::Arc;
 # use delta_kernel::committer::FileSystemCommitter;
 # use delta_kernel::engine::default::DefaultEngine;
@@ -127,7 +127,7 @@ You can create a clustered table using `with_data_layout`. Clustering optimizes 
 layout for queries that filter on the clustering columns:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use std::sync::Arc;
 # use delta_kernel::committer::FileSystemCommitter;
 # use delta_kernel::engine::default::DefaultEngine;
@@ -182,7 +182,7 @@ data files into directories based on partition column values, which allows reade
 entire directories when filtering on those columns.
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use std::sync::Arc;
 # use delta_kernel::committer::FileSystemCommitter;
 # use delta_kernel::engine::default::DefaultEngine;

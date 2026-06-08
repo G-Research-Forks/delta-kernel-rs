@@ -35,7 +35,7 @@ Replace `src/main.rs` with the following. We'll walk through each piece below.
 Filename: src/main.rs
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 use std::sync::Arc;
 
 use delta_kernel::arrow::util::pretty::print_batches;

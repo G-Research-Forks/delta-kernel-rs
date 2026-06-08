@@ -19,7 +19,7 @@ transaction. This method is available on both create-table and existing-table
 transactions.
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # extern crate tokio;
 # use std::sync::Arc;
 # use delta_kernel::committer::FileSystemCommitter;
@@ -65,7 +65,7 @@ transactions because there is no metadata to remove from a table that does not
 exist yet.
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # extern crate tokio;
 # use std::sync::Arc;
 # use delta_kernel::committer::FileSystemCommitter;
@@ -103,7 +103,7 @@ To read domain metadata from a table, call `get_domain_metadata()` on a
 
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # extern crate tokio;
 # use std::sync::Arc;
 # use delta_kernel::engine::default::DefaultEngine;

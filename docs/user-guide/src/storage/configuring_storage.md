@@ -41,7 +41,7 @@ flowchart TD
 the storage backend from the URL scheme:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # extern crate url;
 # use std::sync::Arc;
 # use url::Url;
@@ -62,7 +62,7 @@ To pass provider-specific options (credentials, region, endpoint, etc.), use
 `store_from_url_opts`. These options are forwarded directly to the `object_store` crate:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # extern crate url;
 # use std::collections::HashMap;
 # use url::Url;
