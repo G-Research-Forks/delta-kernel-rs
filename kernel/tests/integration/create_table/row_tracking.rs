@@ -7,7 +7,6 @@
 use std::sync::Arc;
 
 use buoyant_kernel as delta_kernel;
-
 use delta_kernel::arrow::array::{Int32Array, StringArray};
 use delta_kernel::arrow::record_batch::RecordBatch;
 use delta_kernel::committer::FileSystemCommitter;

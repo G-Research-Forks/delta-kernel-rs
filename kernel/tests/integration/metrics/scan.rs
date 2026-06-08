@@ -7,7 +7,6 @@
 use std::sync::Arc;
 
 use buoyant_kernel as delta_kernel;
-
 use delta_kernel::{DeltaResult, Engine, Snapshot};
 
 use super::{measuring_engine, LogState, TestTableBuilder};

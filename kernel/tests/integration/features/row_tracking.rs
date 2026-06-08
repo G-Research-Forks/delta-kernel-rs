@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use buoyant_kernel as delta_kernel;
-
 use delta_kernel::arrow::array::{Array, AsArray, Int32Array, Int64Array, StringArray};
 use delta_kernel::arrow::datatypes::{Int64Type, Schema as ArrowSchema};
 use delta_kernel::arrow::record_batch::RecordBatch;

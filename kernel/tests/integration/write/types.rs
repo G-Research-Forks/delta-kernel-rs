@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use buoyant_kernel as delta_kernel;
-
 #[cfg(feature = "nanosecond-timestamps")]
 use delta_kernel::arrow::array::TimestampNanosecondArray;
 use delta_kernel::arrow::array::{

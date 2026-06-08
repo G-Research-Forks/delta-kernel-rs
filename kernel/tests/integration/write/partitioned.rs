@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use buoyant_kernel as delta_kernel;
-
 use chrono::{NaiveDate, NaiveDateTime, TimeZone, Utc};
 #[cfg(feature = "nanosecond-timestamps")]
 use delta_kernel::arrow::array::TimestampNanosecondArray;
