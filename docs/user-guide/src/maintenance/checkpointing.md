@@ -17,7 +17,7 @@ means checkpoint every 10 commits).
 The easiest way to write a checkpoint is the convenience method on `Snapshot`:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use std::sync::Arc;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;

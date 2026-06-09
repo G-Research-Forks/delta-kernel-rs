@@ -38,7 +38,7 @@ event at a tracing level you choose.
 Filename: src/main.rs
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # extern crate tracing;
 # extern crate tracing_subscriber;
 use std::sync::Arc;

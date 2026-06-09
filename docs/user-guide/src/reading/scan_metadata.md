@@ -44,7 +44,7 @@ to extract each file (represented as a `ScanFile`) in the batch.
 
 For example:
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::scan::state::ScanFile;
 # use delta_kernel::{DeltaResult, Engine};
 # fn perform_read(_chunk: &[ScanFile]) {}

@@ -1,7 +1,6 @@
 use std::error;
 
 use buoyant_kernel as delta_kernel;
-
 use delta_kernel::arrow::array::RecordBatch;
 use delta_kernel::arrow::datatypes::Schema as ArrowSchema;
 use delta_kernel::engine::arrow_conversion::TryFromKernel as _;

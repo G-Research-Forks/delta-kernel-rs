@@ -16,7 +16,7 @@ By default, `Snapshot::builder_for` loads the latest version. To read a
 specific historical version, chain `.at_version()` onto the builder.
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use std::sync::Arc;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;
@@ -41,7 +41,7 @@ version does not exist in the transaction log, `build` returns an error.
 To read the latest version, omit `at_version`:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use std::sync::Arc;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;
@@ -65,7 +65,7 @@ an incremental update: Kernel reads only the new commits since the existing
 snapshot's version, avoiding a full log replay.
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use std::sync::Arc;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;
@@ -102,7 +102,7 @@ You can also refresh to a specific newer version by combining `builder_from`
 with `at_version`:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use std::sync::Arc;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;
@@ -129,7 +129,7 @@ inside the commit. Otherwise, it falls back to the filesystem's last-modified
 time on the commit file.
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use std::sync::Arc;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;
@@ -172,7 +172,7 @@ common of the three because it translates a `[start_ts, end_ts]` window
 into the version range that change data feed (CDF) queries need to read.
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;
 # use delta_kernel::{DeltaResult, Snapshot};
@@ -207,7 +207,7 @@ timestamp window into the start and end versions to read. The end
 timestamp is optional. Pass `None` to indicate no upper bound.
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;
 # use delta_kernel::{DeltaResult, Snapshot};

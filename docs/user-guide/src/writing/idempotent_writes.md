@@ -25,7 +25,7 @@ Call `with_transaction_id()` on the transaction and check `get_app_id_version()`
 committing:
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # extern crate tokio;
 # use std::sync::Arc;
 # use delta_kernel::committer::FileSystemCommitter;

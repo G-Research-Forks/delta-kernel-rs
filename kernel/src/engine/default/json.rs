@@ -398,7 +398,8 @@ mod tests {
                 return self.inner.get_opts(location, options).await;
             }
 
-            // Do the actual GET request first, then introduce any artificial ordering delays as needed
+            // Do the actual GET request first, then introduce any artificial ordering delays as
+            // needed
             let result = self.inner.get_opts(location, options.clone()).await;
 
             if options.head {

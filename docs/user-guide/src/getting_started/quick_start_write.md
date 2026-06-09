@@ -26,7 +26,7 @@ Replace `src/main.rs` with the following:
 Filename: src/main.rs
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # extern crate tokio;
 use std::sync::Arc;
 

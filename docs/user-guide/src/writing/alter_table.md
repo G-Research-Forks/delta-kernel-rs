@@ -40,7 +40,7 @@ column. The flow is:
 5. Call `commit()` to atomically apply the schema change.
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::committer::FileSystemCommitter;
 # use delta_kernel::engine::default::DefaultEngine;
 # use delta_kernel::engine::default::storage::store_from_url;

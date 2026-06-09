@@ -27,7 +27,7 @@ The pattern for partitioned writes is: **group your data by partition values, cr
 `WriteContext` per group, and write each group**.
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # extern crate tokio;
 # use std::collections::HashMap;
 # use delta_kernel::arrow::array::RecordBatch;

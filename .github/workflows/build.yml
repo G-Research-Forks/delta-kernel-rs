@@ -157,9 +157,9 @@ jobs:
       - name: build and lint with clippy
         run: cargo clippy --locked --benches --tests --all-features -- -D warnings
       - name: lint without default features - packages which depend on kernel with features enabled
-        run: cargo clippy --locked --workspace --no-default-features --exclude delta_kernel --exclude delta_kernel_ffi --exclude delta_kernel_derive --exclude delta_kernel_ffi_macros -- -D warnings
+        run: cargo clippy --locked --workspace --no-default-features --exclude buoyant_kernel --exclude delta_kernel_ffi --exclude buoyant_kernel_derive --exclude delta_kernel_ffi_macros -- -D warnings
       - name: lint without default features - packages which don't depend on kernel with features enabled
-        run: cargo clippy --locked --no-default-features --package delta_kernel --package delta_kernel_ffi --package delta_kernel_derive --package delta_kernel_ffi_macros -- -D warnings
+        run: cargo clippy --locked --no-default-features --package buoyant_kernel --package delta_kernel_ffi --package buoyant_kernel_derive --package delta_kernel_ffi_macros -- -D warnings
       - name: check kernel builds with default-engine-native-tls
         run: cargo build --locked -p feature_tests --features default-engine-native-tls
       - name: test native-tls backend has no crypto provider conflict
@@ -179,6 +179,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        if: false
         id: filter
         with:
           filters: |
@@ -345,6 +346,7 @@ jobs:
       - name: Generate code coverage
         run: cargo llvm-cov --locked --all-features --workspace --codecov --output-path codecov.json -- --skip read_table_version_hdfs --skip handle::tests::invalid_handle_code
       - name: Upload coverage to Codecov
+        if: false
         uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5.5.3
         with:
           files: codecov.json

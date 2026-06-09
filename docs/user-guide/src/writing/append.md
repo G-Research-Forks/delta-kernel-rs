@@ -21,7 +21,7 @@ an async `write_parquet` helper. If you use a custom `Engine`, the step 4
 may differ.
 
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # extern crate tokio;
 # use std::sync::Arc;
 # use delta_kernel::arrow::array::{Int32Array, RecordBatch, StringArray};
