@@ -40,4 +40,4 @@ jobs:
       # also runs mdbook-linkcheck2, so broken internal links fail CI here.
       - name: Build the book
         working-directory: docs/user-guide
-        run: mdbook build
+        run: make build
