@@ -35,7 +35,7 @@ def write_parquet(out_dir: Path) -> tuple[str, int]:
     )
     table = pa.table({"id": ids, "f16": f16_vals})
 
-    file_name = f"part-00000-4384565c-4672-4b77-8be6-2dddf3357aa4-c000.snappy.parquet"
+    file_name = "part-00000-4384565c-4672-4b77-8be6-2dddf3357aa4-c000.snappy.parquet"
     file_path = out_dir / file_name
     pq.write_table(table, file_path, compression="snappy")
     return file_name, file_path.stat().st_size
