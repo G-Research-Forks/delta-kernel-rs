@@ -131,7 +131,6 @@ pub struct EngineSchemaVisitor {
         metadata: &CStringMap,
     ),
 
-    #[cfg(feature = "float16")]
     /// Visit a `float16` belonging to the list identified by `sibling_list_id`.
     pub visit_float16: extern "C" fn(
         data: *mut c_void,
@@ -204,7 +203,6 @@ pub struct EngineSchemaVisitor {
         metadata: &CStringMap,
     ),
 
-    #[cfg(feature = "nanosecond-timestamps")]
     /// Visit a nanosecond `timestamp` belonging to the list identified by `sibling_list_id`.
     pub visit_timestamp_nanos: extern "C" fn(
         data: *mut c_void,
@@ -214,7 +212,6 @@ pub struct EngineSchemaVisitor {
         metadata: &CStringMap,
     ),
 
-    #[cfg(feature = "nanosecond-timestamps")]
     /// Visit a nanosecond `timestamp` with no timezone belonging to the list identified
     /// by `sibling_list_id`.
     pub visit_timestamp_nanos_ntz: extern "C" fn(

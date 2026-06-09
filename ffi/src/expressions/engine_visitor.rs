@@ -76,7 +76,6 @@ pub struct EngineExpressionVisitor {
     pub visit_literal_short: VisitLiteralFn<i16>,
     /// Visit an 8bit `byte` belonging to the list identified by `sibling_list_id`.
     pub visit_literal_byte: VisitLiteralFn<i8>,
-    #[cfg(feature = "float16")]
     /// Visit a 16bit `float` belonging to the list identified by `sibling_list_id`.
     /// f16 values are represented as u16 in the C API.
     pub visit_literal_float16: VisitLiteralFn<u16>,
