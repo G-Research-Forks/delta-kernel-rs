@@ -6,6 +6,8 @@ use std::sync::Arc;
 use buoyant_kernel as delta_kernel;
 use chrono::{NaiveDate, NaiveDateTime, TimeZone, Utc};
 use delta_kernel::actions::{MAX_VALUES, MIN_VALUES, NULL_COUNT};
+#[cfg(feature = "float16")]
+use delta_kernel::arrow::array::Float16Array;
 #[cfg(feature = "nanosecond-timestamps")]
 use delta_kernel::arrow::array::TimestampNanosecondArray;
 use delta_kernel::arrow::array::{
@@ -18,7 +20,7 @@ use delta_kernel::committer::FileSystemCommitter;
 use delta_kernel::engine::arrow_conversion::TryIntoArrow as _;
 use delta_kernel::engine::arrow_data::ArrowEngineData;
 use delta_kernel::expressions::Scalar;
-#[cfg(feature = "nanosecond-timestamps")]
+#[cfg(any(feature = "nanosecond-timestamps", feature = "float16"))]
 use delta_kernel::schema::StructField;
 use delta_kernel::schema::{schema, schema_ref, DataType, StructType};
 use delta_kernel::table_features::ColumnMappingMode;
@@ -26,6 +28,8 @@ use delta_kernel::transaction::create_table::create_table;
 use delta_kernel::transaction::data_layout::DataLayout;
 use delta_kernel::transaction::UpdateTableOperation;
 use delta_kernel::Snapshot;
+#[cfg(feature = "float16")]
+use half::f16;
 use rstest::rstest;
 use test_utils::{get_column, read_scan, test_table_setup_mt, write_batch_to_table};
 use url::Url;
@@ -63,6 +67,7 @@ async fn test_write_partitioned_normal_values_roundtrip(
             .logical_partition_columns()
             .len(),
         13 + 4 * cfg!(feature = "nanosecond-timestamps") as usize
+            + cfg!(feature = "float16") as usize
     );
 
     // ===== Step 2: Validate add.path structure in the commit log JSON. =====
@@ -551,6 +556,12 @@ fn all_types_schema() -> Arc<StructType> {
         ));
         Arc::new(StructType::try_new(fields).unwrap())
     };
+    #[cfg(feature = "float16")]
+    let base = {
+        let mut fields: Vec<StructField> = base.fields().cloned().collect();
+        fields.push(StructField::nullable("p_float16", DataType::FLOAT16));
+        Arc::new(StructType::try_new(fields).unwrap())
+    };
     base
 }
 
@@ -576,6 +587,8 @@ const PARTITION_COLS: &[&str] = &[
     "p_timestamp_nanos_pre_epoch",
     #[cfg(feature = "nanosecond-timestamps")]
     "p_timestamp_nanos_ntz_pre_epoch",
+    #[cfg(feature = "float16")]
+    "p_float16",
 ];
 
 // ==============================================================================
@@ -615,6 +628,8 @@ fn normal_arrow_columns() -> Vec<ArrayRef> {
         Arc::new(TimestampNanosecondArray::from(vec![
             pre_epoch_ts * 1000 + 456,
         ])),
+        #[cfg(feature = "float16")]
+        Arc::new(Float16Array::from(vec![f16::from_f32(1.25f32)])),
     ]
 }
 
@@ -657,6 +672,8 @@ fn normal_partition_values() -> Result<HashMap<String, Scalar>, Box<dyn std::err
             "p_timestamp_nanos_ntz_pre_epoch".into(),
             Scalar::TimestampNanosNtz(pre_epoch_ts * 1000 + 456),
         ),
+        #[cfg(feature = "float16")]
+        ("p_float16".into(), Scalar::Float16(f16::from_f32(1.25))),
     ]))
 }
 
@@ -689,6 +706,8 @@ const EXPECTED_NORMAL_PVS: &[(&str, &str)] = &[
         "p_timestamp_nanos_ntz_pre_epoch",
         "1969-07-20 20:17:40.123456456",
     ),
+    #[cfg(feature = "float16")]
+    ("p_float16", "1.25"),
 ];
 
 // ==============================================================================
@@ -724,6 +743,8 @@ fn null_arrow_columns() -> Vec<ArrayRef> {
         Arc::new(TimestampNanosecondArray::from(vec![None::<i64>]).with_timezone("UTC")),
         #[cfg(feature = "nanosecond-timestamps")]
         Arc::new(TimestampNanosecondArray::from(vec![None::<i64>])),
+        #[cfg(feature = "float16")]
+        Arc::new(Float16Array::from(vec![None::<f16>])),
     ]
 }
 
@@ -766,6 +787,8 @@ fn null_partition_values() -> Result<HashMap<String, Scalar>, Box<dyn std::error
             "p_timestamp_nanos_ntz_pre_epoch".into(),
             Scalar::Null(DataType::TIMESTAMP_NANOS_NTZ),
         ),
+        #[cfg(feature = "float16")]
+        ("p_float16".into(), Scalar::Null(DataType::FLOAT16)),
     ]))
 }
 
@@ -858,14 +881,22 @@ fn assert_normal_values(sorted: &RecordBatch) {
         TimestampNanosecondArray,
         pre_epoch_ts * 1000 + 456
     );
+    #[cfg(feature = "float16")]
+    {
+        let float16_idx = 14 + 4 * cfg!(feature = "nanosecond-timestamps") as usize;
+        assert_col!(sorted, float16_idx, Float16Array, f16::from_f32(1.25f32));
+    }
 }
 
-/// Asserts all partition columns (indices 1-13) are null for the single row.
+/// Asserts all partition columns are null for the single row.
 fn assert_all_partition_columns_null(sorted: &RecordBatch) {
     assert_eq!(sorted.num_rows(), 1);
     let mut num_columns = 13;
     if cfg!(feature = "nanosecond-timestamps") {
         num_columns += 4;
+    }
+    if cfg!(feature = "float16") {
+        num_columns += 1;
     }
     for col_idx in 1..=num_columns {
         assert!(

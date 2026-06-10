@@ -26,6 +26,8 @@ use crate::schema::void_utils::strip_void_from_schema;
 use crate::schema::{
     schema_has_invariants, validate_column_defaults_metadata, SchemaRef, StructField, StructType,
 };
+#[cfg(feature = "float16")]
+use crate::table_features::validate_float16_feature_support;
 #[cfg(feature = "geo-type-in-dev")]
 use crate::table_features::validate_geospatial_feature_support;
 #[cfg(feature = "nanosecond-timestamps")]
@@ -450,6 +452,9 @@ impl TableConfiguration {
         )?;
         #[cfg(feature = "nanosecond-timestamps")]
         validate_timestamp_nanos_feature_support(&table_config)?;
+
+        #[cfg(feature = "float16")]
+        validate_float16_feature_support(&table_config)?;
 
         Ok(table_config)
     }
@@ -1870,6 +1875,27 @@ mod test {
         assert!(
             result.is_ok(),
             "Should succeed when TIMESTAMP_NTZ is used with required features"
+        );
+    }
+
+    #[cfg(feature = "float16")]
+    #[test]
+    fn test_float16_validation_integration() {
+        let schema = schema_ref! { nullable "f16": FLOAT16 };
+        let config = |features: &[TableFeature]| {
+            MockTableConfigurationBuilder::new()
+                .with_schema(schema.clone())
+                .with_protocol(MockProtocolBuilder::new().with_features(features).build())
+                .try_build()
+        };
+
+        let result = config(&[]);
+        assert_result_error_with_message(result, "Unsupported: Table contains FLOAT16 columns but does not have the required 'float16' feature in reader and writer features");
+
+        let result = config(&[TableFeature::Float16]);
+        assert!(
+            result.is_ok(),
+            "Should succeed when FLOAT16 is used with required features"
         );
     }
 

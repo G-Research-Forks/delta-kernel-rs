@@ -310,8 +310,8 @@ is the source of truth. Key concepts:
   `icebergCompatV3`, `identityColumns`, `inCommitTimestamp`, `invariants`,
   `materializePartitionColumns`, `rowTracking`
 - Reader + writer: `adaptiveMetadata-preview`, `catalogManaged`, `catalogOwned-preview`,
-  `columnMapping`, `deletionVectors`, `geospatial`, `parquetEncryption-dev`, `timestampNtz`,
-  `typeWidening`, `typeWidening-preview`, `v2Checkpoint`, `vacuumProtocolCheck`,
+  `columnMapping`, `deletionVectors`, `float16`, `geospatial`, `parquetEncryption-dev`,
+  `timestampNtz`, `typeWidening`, `typeWidening-preview`, `v2Checkpoint`, `vacuumProtocolCheck`,
   `variantShredding`, `variantShredding-preview`, `variantType`, `variantType-preview`
 
 Keep this list updated when new protocol features are added to kernel.

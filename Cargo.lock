@@ -942,6 +942,7 @@ dependencies = [
  "criterion",
  "derive_more",
  "futures",
+ "half",
  "hdfs-native 0.13.5",
  "hdfs-native-object-store 0.16.0",
  "indexmap",
@@ -998,6 +999,7 @@ dependencies = [
  "chrono",
  "delta_kernel_default_engine_test_utils",
  "futures",
+ "half",
  "hdfs-native-object-store 0.16.0",
  "hdfs-native-object-store 0.17.0",
  "itertools 0.14.0",
@@ -1653,6 +1655,7 @@ dependencies = [
  "delta-kernel-unity-catalog",
  "delta_kernel_ffi_macros",
  "derive_more",
+ "half",
  "itertools 0.14.0",
  "libc",
  "paste",
@@ -2200,6 +2203,7 @@ dependencies = [
  "cfg-if",
  "crunchy",
  "num-traits",
+ "serde",
  "zerocopy",
 ]
 
@@ -4843,6 +4847,7 @@ version = "0.30.1"
 dependencies = [
  "buoyant_kernel",
  "buoyant_kernel_engine",
+ "half",
  "itertools 0.14.0",
  "rstest",
  "rstest_reuse",

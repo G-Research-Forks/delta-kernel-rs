@@ -311,6 +311,15 @@ pub struct EngineSchemaVisitor {
         is_nullable: bool,
         metadata: &CMetadataMap,
     ),
+
+    /// Visit a `float16` belonging to the list identified by `sibling_list_id`.
+    pub visit_float16: extern "C" fn(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        name: KernelStringSlice,
+        is_nullable: bool,
+        metadata: &CMetadataMap,
+    ),
 }
 
 /// Visit the given `schema` using the provided `visitor`. See the documentation of
@@ -467,6 +476,8 @@ fn visit_schema_impl(schema: &StructType, visitor: &mut EngineSchemaVisitor) -> 
             &DataType::INTEGER => call!(visit_integer),
             &DataType::SHORT => call!(visit_short),
             &DataType::BYTE => call!(visit_byte),
+            #[cfg(feature = "float16")]
+            &DataType::FLOAT16 => call!(visit_float16),
             &DataType::FLOAT => call!(visit_float),
             &DataType::DOUBLE => call!(visit_double),
             &DataType::BOOLEAN => call!(visit_boolean),
@@ -688,6 +699,7 @@ mod tests {
     visit_simple_type!(visit_timestamp_ntz, "timestamp_ntz");
     visit_simple_type!(visit_timestamp_nanos, "timestamp_nanos");
     visit_simple_type!(visit_timestamp_nanos_ntz, "timestamp_nanos_ntz");
+    visit_simple_type!(visit_float16, "float16");
     visit_simple_type!(visit_interval_year_month, "interval year to month");
     visit_simple_type!(visit_interval_day_time, "interval day to second");
     visit_simple_type!(visit_void, "void");
@@ -764,6 +776,7 @@ mod tests {
             visit_geography,
             visit_timestamp_nanos,
             visit_timestamp_nanos_ntz,
+            visit_float16,
         }
     }
 

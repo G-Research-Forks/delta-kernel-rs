@@ -43,6 +43,7 @@ chrono = "0.4.41"
 chrono-tz = { version = "0.10.4", optional = true }
 crc = "3.2.2"
 derive_more = { version = "~2.1", default-features = false, features = ["constructor", "deref", "from"] }
+half = { version = "2.7.1", features = ["serde"], optional = true }
 indexmap = "2.10.0"
 itertools = "0.14"
 percent-encoding = "2"
@@ -102,6 +103,8 @@ prettyprint = ["arrow_59?/prettyprint", "arrow_60?/prettyprint"]
 test-utils = ["prettyprint"]
 # integration-test turns on a particularly heavy test for hdfs-object-store
 integration-test = ["hdfs-native-object-store/integration-test"]
+
+float16 = ["dep:half", "test_utils/float16"]
 
 # The default versions for arrow/parquet/object_store
 arrow = ["arrow-60"] # latest arrow version

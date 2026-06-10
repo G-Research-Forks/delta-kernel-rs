@@ -53,6 +53,8 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::sync::Arc;
 
+#[cfg(feature = "float16")]
+use delta_kernel::arrow::array::Float16Array;
 #[cfg(feature = "nanosecond-timestamps")]
 use delta_kernel::arrow::array::TimestampNanosecondArray;
 use delta_kernel::arrow::array::{
@@ -81,6 +83,8 @@ use delta_kernel_default_engine::executor::tokio::{
 };
 use delta_kernel_default_engine::executor::TaskExecutor;
 use delta_kernel_default_engine::{DefaultEngine, DefaultEngineBuilder};
+#[cfg(feature = "float16")]
+use half::f16;
 
 // ===========================================================================
 // Sweep constants
@@ -1541,6 +1545,13 @@ fn generate_column(arrow_type: &ArrowDataType, rows: usize, base: i32) -> ArrayR
             let values: Vec<i64> = (0..rows).map(|i| (base + i as i32) as i64 * 1000).collect();
             Arc::new(Int64Array::from(values))
         }
+        #[cfg(feature = "float16")]
+        ArrowDataType::Float16 => {
+            let values: Vec<f16> = (0..rows)
+                .map(|i| f16::from_f32(base as f32) + f16::from_f32(i as f32 * 0.5))
+                .collect();
+            Arc::new(Float16Array::from(values))
+        }
         ArrowDataType::Float32 => {
             let values: Vec<f32> = (0..rows).map(|i| base as f32 + i as f32 * 0.5).collect();
             Arc::new(Float32Array::from(values))
@@ -1878,6 +1889,8 @@ fn scalar_for_type(data_type: &DataType, seed: usize) -> Scalar {
                     // Nanoseconds since epoch (no timezone)
                     Scalar::TimestampNanosNtz((18000 + seed as i64) * 86_400_000_000_000)
                 }
+                #[cfg(feature = "float16")]
+                PrimitiveType::Float16 => Scalar::Float16(f16::from_f32(seed as f32 * 0.5)),
                 other => panic!("{other:?} is not a valid partition column type"),
             }
         }

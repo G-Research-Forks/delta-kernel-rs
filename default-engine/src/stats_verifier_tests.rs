@@ -8,6 +8,8 @@
 mod tests {
     use std::sync::Arc;
 
+    #[cfg(feature = "float16")]
+    use delta_kernel::arrow::array::types::Float16Type;
     use delta_kernel::arrow::array::types::{
         Date32Type, Decimal128Type, Float32Type, Float64Type, Int32Type, TimestampMicrosecondType,
     };
@@ -27,6 +29,8 @@ mod tests {
         verify_num_records_present, StatsColumnVerifier,
     };
     use delta_kernel::{EngineData, KernelError};
+    #[cfg(feature = "float16")]
+    use half::f16;
     use rstest::rstest;
 
     use crate::stats::collect_stats_for_test as collect_stats;
@@ -465,6 +469,14 @@ mod tests {
         Arc::new(Int64Array::from(Vec::<Option<i64>>::new())) as ArrayRef,
         DataType::LONG,
     )]
+    #[cfg_attr(feature = "float16", case::float16(
+        Arc::new(PrimitiveArray::<Float16Type>::from(vec![Some(f16::from_f32(1.0)), Some(f16::from_f32(2.0)), Some(f16::from_f32(3.0))])) as ArrayRef,
+        DataType::FLOAT16,
+    ))]
+    #[cfg_attr(feature = "float16", case::float16_all_null(
+        Arc::new(PrimitiveArray::<Float16Type>::from(vec![None::<f16>, None, None])) as ArrayRef,
+        DataType::FLOAT16,
+    ))]
     #[case::float(
         Arc::new(PrimitiveArray::<Float32Type>::from(vec![Some(1.0f32), Some(2.0), Some(3.0)])) as ArrayRef,
         DataType::FLOAT,
