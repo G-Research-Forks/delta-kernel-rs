@@ -149,6 +149,8 @@ define_column_types!(COL_TYPES_INT, DataType::INTEGER);
 define_column_types!(COL_TYPES_LONG, DataType::LONG);
 define_column_types!(COL_TYPES_STRING, DataType::STRING);
 define_column_types!(COL_TYPES_BINARY, DataType::BINARY);
+#[cfg(feature = "float16")]
+define_column_types!(COL_TYPES_FLOAT16, DataType::FLOAT16);
 define_column_types!(COL_TYPES_FLOAT, DataType::FLOAT);
 define_column_types!(COL_TYPES_DOUBLE, DataType::DOUBLE);
 define_column_types!(COL_TYPES_DATE, DataType::DATE);
@@ -196,6 +198,8 @@ fn column_types_for(dt: &DataType) -> KernelResult<&'static ColumnNamesAndTypes>
         &DataType::LONG => Ok(&COL_TYPES_LONG),
         &DataType::STRING => Ok(&COL_TYPES_STRING),
         &DataType::BINARY => Ok(&COL_TYPES_BINARY),
+        #[cfg(feature = "float16")]
+        &DataType::FLOAT16 => Ok(&COL_TYPES_FLOAT16),
         &DataType::FLOAT => Ok(&COL_TYPES_FLOAT),
         &DataType::DOUBLE => Ok(&COL_TYPES_DOUBLE),
         &DataType::DATE => Ok(&COL_TYPES_DATE),
@@ -241,6 +245,8 @@ fn is_stat_present<'b>(
         &DataType::INTEGER => Ok(getter.get_int(row_idx, field_name)?.is_some()),
         &DataType::LONG => Ok(getter.get_long(row_idx, field_name)?.is_some()),
         &DataType::FLOAT => Ok(getter.get_float(row_idx, field_name)?.is_some()),
+        #[cfg(feature = "float16")]
+        &DataType::FLOAT16 => Ok(getter.get_float16(row_idx, field_name)?.is_some()),
         &DataType::DOUBLE => Ok(getter.get_double(row_idx, field_name)?.is_some()),
         &DataType::DATE => Ok(getter.get_date(row_idx, field_name)?.is_some()),
         &DataType::TIMESTAMP | &DataType::TIMESTAMP_NTZ => {

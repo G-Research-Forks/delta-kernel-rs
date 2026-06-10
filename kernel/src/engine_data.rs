@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use derive_more::Constructor;
+#[cfg(feature = "float16")]
+use half::f16;
 use tracing::debug;
 
 use crate::actions::visitors::SelectionVectorVisitor;
@@ -272,6 +274,8 @@ pub trait GetData<'a> {
         (get_map, MapItem<'a>),
         (get_struct_list, StructList<'a>)
     );
+    #[cfg(feature = "float16")]
+    impl_default_get!((get_float16, f16));
 }
 
 macro_rules! impl_null_get {
@@ -302,6 +306,8 @@ impl<'a> GetData<'a> for () {
         (get_map, MapItem<'a>),
         (get_struct_list, StructList<'a>)
     );
+    #[cfg(feature = "float16")]
+    impl_null_get!((get_float16, f16));
 }
 
 /// This is a convenience wrapper over `GetData` to allow code like: `let name: Option<String> =
@@ -346,6 +352,9 @@ impl_typed_get_data!(
     (get_list, ListItem<'a>),
     (get_map, MapItem<'a>)
 );
+
+#[cfg(feature = "float16")]
+impl_typed_get_data!((get_float16, f16));
 
 impl<'a> TypedGetData<'a, String> for dyn GetData<'a> + '_ {
     fn get_opt(&'a self, row_index: usize, field_name: &str) -> KernelResult<Option<String>> {

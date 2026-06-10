@@ -13,6 +13,8 @@ pub(crate) use column_mapping::{
     StaleAnnotationPolicy,
 };
 use delta_kernel_derive::internal_api;
+#[cfg(feature = "float16")]
+pub(crate) use float16::{schema_contains_float16, validate_float16_feature_support};
 #[cfg(feature = "geo-type-in-dev")]
 pub(crate) use geospatial::validate_geospatial_feature_support;
 #[cfg(feature = "nanosecond-timestamps")]
@@ -42,6 +44,8 @@ use crate::utils::require;
 use crate::{KernelError, KernelResult};
 
 mod column_mapping;
+#[cfg(feature = "float16")]
+mod float16;
 #[cfg(feature = "geo-type-in-dev")]
 mod geospatial;
 mod iceberg_compat;
@@ -167,6 +171,9 @@ pub(crate) enum TableFeature {
     #[strum(to_string = "timestampNtz", serialize = "timestampWithoutTimezone")]
     #[serde(rename = "timestampNtz", alias = "timestampWithoutTimezone")]
     TimestampWithoutTimezone,
+    /// Float16 primitive datatype
+    #[cfg(feature = "float16")]
+    Float16,
     /// Nanosecond resolution timestamps
     #[cfg(feature = "nanosecond-timestamps")]
     #[strum(serialize = "timestampNanos")]
@@ -613,6 +620,15 @@ static DELETION_VECTORS_INFO: FeatureInfo = FeatureInfo {
     }),
 };
 
+#[cfg(feature = "float16")]
+static FLOAT16_INFO: FeatureInfo = FeatureInfo {
+    feature_type: FeatureType::ReaderWriter,
+    min_legacy_version: None,
+    feature_requirements: &[],
+    kernel_support: KernelSupport::Supported,
+    enablement_check: EnablementCheck::AlwaysIfSupported,
+};
+
 static TIMESTAMP_WITHOUT_TIMEZONE_INFO: FeatureInfo = FeatureInfo {
     feature_type: FeatureType::ReaderWriter,
     min_legacy_version: None,
@@ -814,6 +830,8 @@ impl TableFeature {
             | TableFeature::VariantShreddingPreview
             | TableFeature::AdaptiveMetadataPreview
             | TableFeature::GeospatialType => FeatureType::ReaderWriter,
+            #[cfg(feature = "float16")]
+            TableFeature::Float16 => FeatureType::ReaderWriter,
             TableFeature::AppendOnly
             | TableFeature::DomainMetadata
             | TableFeature::Invariants
@@ -874,6 +892,8 @@ impl TableFeature {
             TableFeature::ColumnMapping => &COLUMN_MAPPING_INFO,
             TableFeature::DeletionVectors => &DELETION_VECTORS_INFO,
             TableFeature::TimestampWithoutTimezone => &TIMESTAMP_WITHOUT_TIMEZONE_INFO,
+            #[cfg(feature = "float16")]
+            TableFeature::Float16 => &FLOAT16_INFO,
             #[cfg(feature = "nanosecond-timestamps")]
             TableFeature::TimestampNanos => &TIMESTAMP_NANOSECOND_INFO,
             TableFeature::TypeWidening => &TYPE_WIDENING_INFO,
@@ -1270,6 +1290,8 @@ mod tests {
                 TableFeature::ColumnMapping => "columnMapping",
                 TableFeature::DeletionVectors => "deletionVectors",
                 TableFeature::TimestampWithoutTimezone => "timestampNtz",
+                #[cfg(feature = "float16")]
+                TableFeature::Float16 => "float16",
                 #[cfg(feature = "nanosecond-timestamps")]
                 TableFeature::TimestampNanos => "timestampNanos",
                 TableFeature::TypeWidening => "typeWidening",

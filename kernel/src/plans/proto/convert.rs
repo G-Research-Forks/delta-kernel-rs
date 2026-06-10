@@ -575,6 +575,8 @@ impl From<&Scalar> for proto_expr::Scalar {
             Scalar::Long(v) => Value::Long(*v),
             Scalar::Short(v) => Value::Short(*v as i32),
             Scalar::Byte(v) => Value::Byte(*v as i32),
+            #[cfg(feature = "float16")]
+            Scalar::Float16(v) => Value::Float16(u32::from(v.to_bits())),
             Scalar::Float(v) => Value::Float(*v),
             Scalar::Double(v) => Value::Double(*v),
             Scalar::String(v) => Value::String(v.clone()),
@@ -685,6 +687,8 @@ impl From<&PrimitiveType> for proto_schema::PrimitiveType {
             PrimitiveType::Integer => PrimitiveTypeKind::Simple(Simple::Integer as i32),
             PrimitiveType::Short => PrimitiveTypeKind::Simple(Simple::Short as i32),
             PrimitiveType::Byte => PrimitiveTypeKind::Simple(Simple::Byte as i32),
+            #[cfg(feature = "float16")]
+            PrimitiveType::Float16 => PrimitiveTypeKind::Simple(Simple::Float16 as i32),
             PrimitiveType::Float => PrimitiveTypeKind::Simple(Simple::Float as i32),
             PrimitiveType::Double => PrimitiveTypeKind::Simple(Simple::Double as i32),
             PrimitiveType::Boolean => PrimitiveTypeKind::Simple(Simple::Boolean as i32),
@@ -923,6 +927,14 @@ impl TryFrom<proto_schema::PrimitiveType> for PrimitiveType {
                     Simple::TimestampNanos | Simple::TimestampNanosNtz => {
                         return Err(KernelError::schema(
                             "timestamp_nanos types require the 'nanosecond-timestamps' feature",
+                        ))
+                    }
+                    #[cfg(feature = "float16")]
+                    Simple::Float16 => PrimitiveType::Float16,
+                    #[cfg(not(feature = "float16"))]
+                    Simple::Float16 => {
+                        return Err(KernelError::schema(
+                            "float16 type requires the 'float16' feature",
                         ))
                     }
                     Simple::Void => PrimitiveType::Void,
@@ -2084,6 +2096,7 @@ mod tests {
             Value::Long(_) => "long",
             Value::Short(_) => "short",
             Value::Byte(_) => "byte",
+            Value::Float16(_) => "float16",
             Value::Float(_) => "float",
             Value::Double(_) => "double",
             Value::String(_) => "string",

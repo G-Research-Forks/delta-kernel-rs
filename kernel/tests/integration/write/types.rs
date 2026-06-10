@@ -3,6 +3,8 @@
 use std::sync::Arc;
 
 use buoyant_kernel as delta_kernel;
+#[cfg(feature = "float16")]
+use delta_kernel::arrow::array::Float16Array;
 #[cfg(feature = "nanosecond-timestamps")]
 use delta_kernel::arrow::array::TimestampNanosecondArray;
 use delta_kernel::arrow::array::{
@@ -20,6 +22,8 @@ use delta_kernel::schema::{schema_ref, DataType, SchemaRef, StructField};
 use delta_kernel::transaction::create_table::create_table as kernel_create_table;
 use delta_kernel::transaction::UpdateTableOperation;
 use delta_kernel::{KernelError, Snapshot};
+#[cfg(feature = "float16")]
+use half::f16;
 use itertools::Itertools;
 use rstest::rstest;
 use serde_json::Deserializer;
@@ -42,13 +46,13 @@ async fn test_append_timestamp_ntz() -> Result<(), Box<dyn std::error::Error>> {
         -62135596800000000i64, // 0001-01-01T00:00:00.000000 (near min valid timestamp)
     ];
 
-    test_append_timestamp(
+    test_append_round_trip(
         DataType::TIMESTAMP_NTZ,
         "ts_ntz",
         "test_table_timestamp_ntz",
         vec!["timestampNtz"],
         Arc::new(TimestampMicrosecondArray::from(timestamp_values)),
-        ("0001-01-01T00:00:00.000", "9999-12-31T23:59:59.999"),
+        Some(("0001-01-01T00:00:00.000", "9999-12-31T23:59:59.999")),
     )
     .await
 }
@@ -65,14 +69,14 @@ async fn test_append_timestamp_nanos() -> Result<(), Box<dyn std::error::Error>>
         i64::MIN,               // 1677-09-21T00:12:43.145224192
     ];
 
-    test_append_timestamp(
+    test_append_round_trip(
         DataType::TIMESTAMP_NANOS,
         "ts_nanos",
         "test_table_timestamp_nanos",
         vec!["timestampNanos", "timestampNtz"],
         Arc::new(TimestampNanosecondArray::from(timestamp_values).with_timezone("UTC")),
         // Stats are written at millisecond precision: nanoseconds are truncated.
-        ("1677-09-21T00:12:43.145Z", "2262-04-11T23:47:16.854Z"),
+        Some(("1677-09-21T00:12:43.145Z", "2262-04-11T23:47:16.854Z")),
     )
     .await
 }
@@ -89,24 +93,50 @@ async fn test_append_timestamp_nanos_ntz() -> Result<(), Box<dyn std::error::Err
         i64::MIN,               // 1677-09-21T00:12:43.145224192
     ];
 
-    test_append_timestamp(
+    test_append_round_trip(
         DataType::TIMESTAMP_NANOS_NTZ,
         "ts_nanos_ntz",
         "test_table_timestamp_nanos_ntz",
         vec!["timestampNanos", "timestampNtz"],
         Arc::new(TimestampNanosecondArray::from(timestamp_values)),
-        ("1677-09-21T00:12:43.145", "2262-04-11T23:47:16.854"),
+        Some(("1677-09-21T00:12:43.145", "2262-04-11T23:47:16.854")),
     )
     .await
 }
 
-async fn test_append_timestamp(
+#[cfg(feature = "float16")]
+#[tokio::test]
+async fn test_append_float16() -> Result<(), Box<dyn std::error::Error>> {
+    let f16_values = vec![
+        f16::from_f32(0.0),
+        f16::from_f32(1.5),
+        f16::from_f32(-2.25),
+        f16::from_f32(0.125),
+        f16::MAX,
+        f16::MIN,
+        f16::INFINITY,
+        f16::NEG_INFINITY,
+        f16::NAN,
+    ];
+
+    test_append_round_trip(
+        DataType::FLOAT16,
+        "f16",
+        "test_table_float16",
+        vec!["float16"],
+        Arc::new(Float16Array::from(f16_values)),
+        None,
+    )
+    .await
+}
+
+async fn test_append_round_trip(
     dtype: DataType,
     col: &str,
     path: &str,
     features: Vec<&str>,
-    timestamp_values: ArrayRef,
-    expected_bounds: (&str, &str),
+    values: ArrayRef,
+    expected_bounds: Option<(&str, &str)>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // setup tracing
     let _ = tracing_subscriber::fmt::try_init();
@@ -136,10 +166,7 @@ async fn test_append_timestamp(
         |builder| builder,
     )?;
 
-    let data = RecordBatch::try_new(
-        Arc::new(schema.as_ref().try_into_arrow()?),
-        vec![timestamp_values],
-    )?;
+    let data = RecordBatch::try_new(Arc::new(schema.as_ref().try_into_arrow()?), vec![values])?;
 
     // Write data
     let engine = Arc::new(engine);
@@ -181,9 +208,10 @@ async fn test_append_timestamp(
 
     let stats: serde_json::Value =
         serde_json::from_str(parsed_commits[1]["add"]["stats"].as_str().unwrap())?;
-    let (expected_min, expected_max) = expected_bounds;
-    assert_eq!(stats["minValues"][col], expected_min);
-    assert_eq!(stats["maxValues"][col], expected_max);
+    if let Some((expected_min, expected_max)) = expected_bounds {
+        assert_eq!(stats["minValues"][col], expected_min);
+        assert_eq!(stats["maxValues"][col], expected_max);
+    }
 
     // Verify the data can be read back correctly
     test_read(&ArrowEngineData::new(data), &table_url, engine)?;

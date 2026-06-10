@@ -287,6 +287,9 @@ pub struct EngineExpressionVisitor {
     /// Visit a 64bit timestamp belonging to the list identified by `sibling_list_id`.
     /// The timestamp is nanosecond precision with no timezone.
     pub visit_literal_timestamp_nanos_ntz: VisitLiteralFn<i64>,
+    /// Visit a 16bit `float` belonging to the list identified by `sibling_list_id`.
+    /// f16 values are represented as u16 in the C API.
+    pub visit_literal_float16: VisitLiteralFn<u16>,
 }
 
 /// Visit the expression of the passed [`SharedExpression`] Handle using the provided `visitor`.
@@ -578,6 +581,13 @@ fn visit_expression_scalar(
         Scalar::Short(val) => call!(visitor, visit_literal_short, sibling_list_id, *val),
         Scalar::Byte(val) => call!(visitor, visit_literal_byte, sibling_list_id, *val),
         Scalar::Float(val) => call!(visitor, visit_literal_float, sibling_list_id, *val),
+        #[cfg(feature = "float16")]
+        Scalar::Float16(val) => call!(
+            visitor,
+            visit_literal_float16,
+            sibling_list_id,
+            val.to_bits()
+        ),
         Scalar::Double(val) => {
             call!(visitor, visit_literal_double, sibling_list_id, *val)
         }
@@ -833,6 +843,10 @@ mod tests {
             sibling_list_id: usize,
             value: i64,
         },
+        Float16 {
+            sibling_list_id: usize,
+            value: u16,
+        },
         IntervalYearMonth {
             sibling_list_id: usize,
             value: i32,
@@ -925,6 +939,14 @@ mod tests {
     ) {
         let builder = unsafe { &mut *(data as *mut TestExpressionBuilder) };
         builder.events.push(LiteralEvent::TimestampNanosNtz {
+            sibling_list_id,
+            value,
+        });
+    }
+
+    extern "C" fn visit_literal_float16(data: *mut c_void, sibling_list_id: usize, value: u16) {
+        let builder = unsafe { &mut *(data as *mut TestExpressionBuilder) };
+        builder.events.push(LiteralEvent::Float16 {
             sibling_list_id,
             value,
         });
@@ -1031,6 +1053,7 @@ mod tests {
             visit_literal_timestamp_ntz,
             visit_literal_timestamp_nanos,
             visit_literal_timestamp_nanos_ntz,
+            visit_literal_float16,
             visit_literal_date: ignore_i32,
             visit_literal_interval_year_month,
             visit_literal_interval_day_time,
