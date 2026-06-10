@@ -24,6 +24,8 @@ use crate::schema::{
     StructType,
 };
 use crate::table_configuration::TableConfiguration;
+#[cfg(feature = "float16")]
+use crate::table_features::schema_contains_float16;
 #[cfg(feature = "nanosecond-timestamps")]
 use crate::table_features::schema_contains_timestamp_nanos;
 use crate::table_features::{
@@ -423,6 +425,19 @@ fn maybe_enable_invariants(schema: &SchemaRef, validated: &mut ValidatedTablePro
     if schema_contains_non_null_fields(schema) {
         add_feature_to_lists(
             TableFeature::Invariants,
+            &mut validated.reader_features,
+            &mut validated.writer_features,
+        );
+    }
+}
+
+#[cfg(feature = "float16")]
+/// Conditionally adds the `float16` feature to the protocol when the schema contains
+/// Float16 columns anywhere in the schema tree (top-level, nested structs, arrays, maps).
+fn maybe_enable_float16(schema: &SchemaRef, validated: &mut ValidatedTableProperties) {
+    if schema_contains_float16(schema) {
+        add_feature_to_lists(
+            TableFeature::Float16,
             &mut validated.reader_features,
             &mut validated.writer_features,
         );
@@ -960,6 +975,9 @@ impl CreateTableTransactionBuilder {
         // Auto-enable timestampNanos feature if schema contains TimestampNanos columns
         #[cfg(feature = "nanosecond-timestamps")]
         maybe_enable_timestamp_nanos(&effective_schema, &mut validated);
+
+        #[cfg(feature = "float16")]
+        maybe_enable_float16(&effective_schema, &mut validated);
 
         // Property-driven auto-enablement: check enablement properties
         maybe_auto_enable_property_driven_features(&mut validated);

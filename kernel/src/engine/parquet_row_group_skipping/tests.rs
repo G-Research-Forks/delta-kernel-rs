@@ -3,7 +3,12 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::sync::{Arc, LazyLock};
 
+#[cfg(feature = "float16")]
+use half::f16;
+
 use super::*;
+#[cfg(feature = "float16")]
+use crate::arrow::array::Float16Array;
 use crate::arrow::array::{Int64Array, RecordBatch, StringArray, StructArray};
 use crate::arrow::datatypes::{DataType as ArrowDataType, Field, Fields, Schema as ArrowSchema};
 use crate::expressions::{
@@ -1149,4 +1154,56 @@ fn checkpoint_filter_nested_struct_column_stats() {
         &predicate,
         &NO_PARTITIONS
     ));
+}
+
+#[cfg(feature = "float16")]
+#[test]
+fn test_get_float16_stat_values() {
+    let values = Float16Array::from(vec![
+        f16::from_f32(1.5),
+        f16::from_f32(-2.25),
+        f16::from_f32(0.125),
+        f16::from_f32(3.5),
+    ]);
+    let schema = Arc::new(ArrowSchema::new(vec![Field::new(
+        "f16",
+        ArrowDataType::Float16,
+        true,
+    )]));
+    let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(values)]).unwrap();
+
+    let tmp = tempfile::NamedTempFile::new().unwrap();
+    let file = tmp.as_file().try_clone().unwrap();
+    let mut writer = ArrowWriter::try_new(file, schema, None).unwrap();
+    writer.write(&batch).unwrap();
+    writer.close().unwrap();
+
+    let file = File::open(tmp.path()).unwrap();
+    let metadata = ArrowReaderMetadata::load(&file, Default::default()).unwrap();
+    let columns = Predicate::and_from(vec![column_pred!("f16")]);
+    let filter = RowGroupFilter::new(metadata.metadata().row_group(0), &columns);
+
+    assert_eq!(
+        filter.get_min_stat(&column_name!("f16"), &DataType::FLOAT16),
+        Some(Scalar::Float16(f16::from_f32(-2.25)))
+    );
+    assert_eq!(
+        filter.get_max_stat(&column_name!("f16"), &DataType::FLOAT16),
+        Some(Scalar::Float16(f16::from_f32(3.5)))
+    );
+}
+
+#[cfg(feature = "float16")]
+#[test]
+fn test_float16_from_bytes() {
+    // Valid float16 bytes
+    assert_eq!(
+        float16_from_bytes(Some(&[0x00, 0x3E])),
+        Some(Scalar::Float16(f16::from_f32(1.5)))
+    );
+    // Absent bytes -> None
+    assert_eq!(float16_from_bytes(None), None);
+    // Wrong length -> None
+    assert_eq!(float16_from_bytes(Some(&[0x00])), None);
+    assert_eq!(float16_from_bytes(Some(&[0x00, 0x3E, 0x00])), None);
 }

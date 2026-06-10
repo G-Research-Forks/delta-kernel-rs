@@ -1731,6 +1731,9 @@ pub enum PrimitiveType {
     Short,
     /// i8: 1-byte signed integer number. Range: -128 to 127
     Byte,
+    #[cfg(feature = "float16")]
+    /// f16: 2-byte half-precision floating-point numbers
+    Float16,
     /// f32: 4-byte single-precision floating-point numbers
     Float,
     /// f64: 8-byte double-precision floating-point numbers
@@ -1769,6 +1772,10 @@ impl PrimitiveType {
     #[internal_api]
     pub(crate) fn can_widen_to(&self, target: &Self) -> bool {
         use PrimitiveType::*;
+        #[cfg(not(feature = "float16"))]
+        let widen_float16 = false;
+        #[cfg(feature = "float16")]
+        let widen_float16 = matches!((self, target), (Float16, Float) | (Float16, Double));
         matches!(
             (self, target),
             // Integer widening: smaller types can be read as larger ones
@@ -1782,7 +1789,7 @@ impl PrimitiveType {
                 // one as the other is safe at the data layer.
                 | (Timestamp, TimestampNtz)
                 | (TimestampNtz, Timestamp)
-        )
+        ) || widen_float16
     }
 
     /// Returns `true` if `self` is a physical integer type that some checkpoint writers
@@ -1848,6 +1855,8 @@ impl<'de> serde::Deserialize<'de> for PrimitiveType {
             "integer" => Ok(PrimitiveType::Integer),
             "short" => Ok(PrimitiveType::Short),
             "byte" => Ok(PrimitiveType::Byte),
+            #[cfg(feature = "float16")]
+            "float16" => Ok(PrimitiveType::Float16),
             "float" => Ok(PrimitiveType::Float),
             "double" => Ok(PrimitiveType::Double),
             "boolean" => Ok(PrimitiveType::Boolean),
@@ -1901,6 +1910,8 @@ impl Display for PrimitiveType {
             PrimitiveType::Integer => write!(f, "integer"),
             PrimitiveType::Short => write!(f, "short"),
             PrimitiveType::Byte => write!(f, "byte"),
+            #[cfg(feature = "float16")]
+            PrimitiveType::Float16 => write!(f, "float16"),
             PrimitiveType::Float => write!(f, "float"),
             PrimitiveType::Double => write!(f, "double"),
             PrimitiveType::Boolean => write!(f, "boolean"),
@@ -2039,6 +2050,8 @@ impl DataType {
     pub const INTEGER: Self = DataType::Primitive(PrimitiveType::Integer);
     pub const SHORT: Self = DataType::Primitive(PrimitiveType::Short);
     pub const BYTE: Self = DataType::Primitive(PrimitiveType::Byte);
+    #[cfg(feature = "float16")]
+    pub const FLOAT16: Self = DataType::Primitive(PrimitiveType::Float16);
     pub const FLOAT: Self = DataType::Primitive(PrimitiveType::Float);
     pub const DOUBLE: Self = DataType::Primitive(PrimitiveType::Double);
     pub const BOOLEAN: Self = DataType::Primitive(PrimitiveType::Boolean);
@@ -2472,6 +2485,7 @@ mod tests {
     #[case("integer", DataType::INTEGER)]
     #[case("short", DataType::SHORT)]
     #[case("byte", DataType::BYTE)]
+    #[cfg_attr(feature = "float16", case("float16", DataType::FLOAT16))]
     #[case("float", DataType::FLOAT)]
     #[case("double", DataType::DOUBLE)]
     #[case("boolean", DataType::BOOLEAN)]
@@ -2559,6 +2573,7 @@ mod tests {
     #[case("\"integer\"", DataType::INTEGER)]
     #[case("\"short\"", DataType::SHORT)]
     #[case("\"byte\"", DataType::BYTE)]
+    #[cfg_attr(feature = "float16", case("\"float16\"", DataType::FLOAT16))]
     #[case("\"float\"", DataType::FLOAT)]
     #[case("\"double\"", DataType::DOUBLE)]
     #[case("\"boolean\"", DataType::BOOLEAN)]

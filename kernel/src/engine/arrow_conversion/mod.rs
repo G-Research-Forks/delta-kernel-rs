@@ -347,6 +347,8 @@ impl TryFromKernel<&DataType> for ArrowDataType {
                     PrimitiveType::Integer => Ok(ArrowDataType::Int32),
                     PrimitiveType::Short => Ok(ArrowDataType::Int16),
                     PrimitiveType::Byte => Ok(ArrowDataType::Int8),
+                    #[cfg(feature = "float16")]
+                    PrimitiveType::Float16 => Ok(ArrowDataType::Float16),
                     PrimitiveType::Float => Ok(ArrowDataType::Float32),
                     PrimitiveType::Double => Ok(ArrowDataType::Float64),
                     PrimitiveType::Boolean => Ok(ArrowDataType::Boolean),
@@ -563,6 +565,8 @@ impl TryFromArrow<&ArrowDataType> for DataType {
             ArrowDataType::UInt32 => Ok(DataType::INTEGER),
             ArrowDataType::UInt16 => Ok(DataType::SHORT),
             ArrowDataType::UInt8 => Ok(DataType::BYTE),
+            #[cfg(feature = "float16")]
+            ArrowDataType::Float16 => Ok(DataType::FLOAT16),
             ArrowDataType::Float32 => Ok(DataType::FLOAT),
             ArrowDataType::Float64 => Ok(DataType::DOUBLE),
             ArrowDataType::Boolean => Ok(DataType::BOOLEAN),

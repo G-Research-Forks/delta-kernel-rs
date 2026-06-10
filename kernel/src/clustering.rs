@@ -90,7 +90,7 @@ pub(crate) fn validate_clustering_columns(
                 return Err(Error::generic(format!(
                     "Clustering column '{col}' has unsupported type '{dt}'. \
                      Supported types: Byte, Short, Integer, Long, Float, Double, \
-                     Decimal, Date, Timestamp, TimestampNtz, TimestampNanos, TimestampNanosNtz, String"
+                     Float16, Decimal, Date, Timestamp, TimestampNtz, TimestampNanos, TimestampNanosNtz, String"
                 )));
             }
         }
@@ -293,6 +293,8 @@ mod tests {
             StructField::new("short_col", DataType::SHORT, false),
             StructField::new("int_col", DataType::INTEGER, false),
             StructField::new("long_col", DataType::LONG, false),
+            #[cfg(feature = "float16")]
+            StructField::new("float16_col", DataType::FLOAT16, false),
             StructField::new("float_col", DataType::FLOAT, false),
             StructField::new("double_col", DataType::DOUBLE, false),
             StructField::new("date_col", DataType::DATE, false),

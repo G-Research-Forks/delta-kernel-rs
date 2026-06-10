@@ -43,7 +43,7 @@ pipeline {
           agent { label 'rust' }
 
           steps {
-            sh 'cargo nextest r --features arrow-58,nanosecond-timestamps'
+            sh 'cargo nextest r --features arrow-58,nanosecond-timestamps,float16'
             // It seems that cargo-nextest is not able to run doctests
             // <https://github.com/nextest-rs/nextest/issues/16>
             sh 'cargo test --doc'

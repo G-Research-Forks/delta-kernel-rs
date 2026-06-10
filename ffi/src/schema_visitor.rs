@@ -182,6 +182,25 @@ pub unsafe extern "C" fn visit_field_byte(
         .into_extern_result(&allocate_error)
 }
 
+#[cfg(feature = "float16")]
+/// Visit a float16 field. Float16 fields store 16-bit floating point numbers.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_float16(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    visit_field_primitive_impl(state, name_str, PrimitiveType::Float16, nullable)
+        .into_extern_result(&allocate_error)
+}
+
 /// Visit a float field. Float fields store 32-bit floating point numbers.
 ///
 /// # Safety
@@ -788,6 +807,7 @@ mod tests {
         //   col_byte: byte,
         //   col_double: double,
         //   col_float: float,
+        //   col_float16: f16,
         //   col_boolean: boolean,
         //   col_binary: binary,
         //   col_date: date,
@@ -811,6 +831,8 @@ mod tests {
         let col_short = visit_field!(short, state, "col_short", false);
         let col_byte = visit_field!(byte, state, "col_byte", false);
         let col_double = visit_field!(double, state, "col_double", false);
+        #[cfg(feature = "float16")]
+        let col_float16 = visit_field!(float16, state, "col_float16", false);
         let col_float = visit_field!(float, state, "col_float", false);
         let col_boolean = visit_field!(boolean, state, "col_boolean", false);
         let col_binary = visit_field!(binary, state, "col_binary", false);
@@ -871,6 +893,8 @@ mod tests {
             col_timestamp_nanos,
             #[cfg(feature = "nanosecond-timestamps")]
             col_timestamp_nanos_ntz,
+            #[cfg(feature = "float16")]
+            col_float16,
             col_decimal,
             col_array,
             col_map,
@@ -910,6 +934,8 @@ mod tests {
             ("col_timestamp_nanos", PrimitiveType::TimestampNanos),
             #[cfg(feature = "nanosecond-timestamps")]
             ("col_timestamp_nanos_ntz", PrimitiveType::TimestampNanosNtz),
+            #[cfg(feature = "float16")]
+            ("col_float16", PrimitiveType::Float16),
         ];
         assert_eq!(fields.len(), primitive_field_expectations.len() + 5);
 

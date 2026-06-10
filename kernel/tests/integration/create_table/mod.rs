@@ -3,6 +3,8 @@
 mod clustering;
 mod column_mapping;
 mod ctas;
+#[cfg(feature = "float16")]
+mod float16;
 mod iceberg_compat;
 mod ict;
 mod partitioned;

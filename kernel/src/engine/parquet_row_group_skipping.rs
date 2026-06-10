@@ -4,6 +4,8 @@ use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Days};
 use delta_kernel_derive::internal_api;
+#[cfg(feature = "float16")]
+use half::f16;
 use tracing::debug;
 
 use crate::engine::arrow_utils::RowIndexBuilder;
@@ -176,6 +178,10 @@ fn extract_min_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar
         (Short, _) => return None,
         (Byte, Statistics::Int32(s)) => (*s.min_opt()? as i8).into(),
         (Byte, _) => return None,
+        #[cfg(feature = "float16")]
+        (Float16, Statistics::FixedLenByteArray(b)) => float16_from_bytes(b.min_bytes_opt())?,
+        #[cfg(feature = "float16")]
+        (Float16, _) => return None,
         (Float, Statistics::Float(s)) => s.min_opt()?.into(),
         (Float, _) => return None,
         (Double, Statistics::Double(s)) => s.min_opt()?.into(),
@@ -228,6 +234,10 @@ fn extract_max_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar
         (Short, _) => return None,
         (Byte, Statistics::Int32(s)) => (*s.max_opt()? as i8).into(),
         (Byte, _) => return None,
+        #[cfg(feature = "float16")]
+        (Float16, Statistics::FixedLenByteArray(b)) => float16_from_bytes(b.max_bytes_opt())?,
+        #[cfg(feature = "float16")]
+        (Float16, _) => return None,
         (Float, Statistics::Float(s)) => s.max_opt()?.into(),
         (Float, _) => return None,
         (Double, Statistics::Double(s)) => s.max_opt()?.into(),
@@ -486,6 +496,12 @@ fn extract_max_i64(stats: &Statistics) -> Option<i64> {
         Statistics::Int32(s) => Some(i64::from(*s.max_opt()?)),
         _ => None,
     }
+}
+
+#[cfg(feature = "float16")]
+fn float16_from_bytes(bytes: Option<&[u8]>) -> Option<Scalar> {
+    let bytes: [u8; 2] = bytes?.try_into().ok()?;
+    Some(Scalar::Float16(f16::from_le_bytes(bytes)))
 }
 
 /// Given a predicate of interest and a set of parquet column descriptors, build a column ->

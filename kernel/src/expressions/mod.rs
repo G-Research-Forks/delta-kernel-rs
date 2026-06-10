@@ -1265,6 +1265,9 @@ mod tests {
     mod serde_tests {
         use std::sync::Arc;
 
+        #[cfg(feature = "float16")]
+        use half::f16;
+
         use super::assert_roundtrip;
         use crate::expressions::scalars::{ArrayData, DecimalData, MapData, StructData};
         use crate::expressions::{
@@ -1287,6 +1290,8 @@ mod tests {
                 Expression::literal(42i8),          // Byte
                 Expression::literal(1.12345677_32), // Float
                 Expression::literal(1.12345667_64), // Double
+                #[cfg(feature = "float16")]
+                Expression::literal(f16::from_f32(1.5)),
                 // String and Boolean
                 Expression::literal("hello world"),
                 Expression::literal(true),

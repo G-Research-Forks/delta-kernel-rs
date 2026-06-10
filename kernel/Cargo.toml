@@ -43,6 +43,7 @@ delta_kernel_derive = { package = "buoyant_kernel_derive", path = "../derive-mac
 bytes = "1.10"
 chrono = "0.4.41"
 crc = "3.2.2"
+half = { version = "2.7.1", features = ["serde"], optional = true }
 indexmap = "2.10.0"
 itertools = "0.14"
 percent-encoding = "2"
@@ -105,6 +106,8 @@ prettyprint = ["arrow_57?/prettyprint", "arrow_58?/prettyprint"]
 test-utils = ["prettyprint"]
 # integration-test turns on a particularly heavy test for hdfs-object-store
 integration-test = ["hdfs-native-object-store/integration-test"]
+
+float16 = ["dep:half", "test_utils/float16"]
 
 # The default versions for arrow/parquet/object_store
 arrow = ["arrow-58"] # latest arrow version

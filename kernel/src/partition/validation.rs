@@ -170,6 +170,8 @@ fn validate_types(
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "float16")]
+    use half::f16;
     use rstest::rstest;
 
     use super::*;
@@ -417,6 +419,24 @@ mod tests {
         #[case] value: Scalar,
     ) {
         assert_type_ok_nullable(data_type, value);
+    }
+
+    /// Float16 validation.
+    #[cfg(feature = "float16")]
+    #[rstest]
+    #[case(DataType::FLOAT16, Scalar::Float16(f16::from_f32(0.0)))]
+    #[case(DataType::FLOAT16, Scalar::Float16(f16::NAN))]
+    #[case(DataType::FLOAT16, Scalar::Float16(f16::INFINITY))]
+    #[case(DataType::FLOAT16, Scalar::Float16(f16::NEG_INFINITY))]
+    fn test_validate_float16_returns_ok(#[case] data_type: DataType, #[case] value: Scalar) {
+        assert_type_ok(data_type, value);
+    }
+
+    /// Null float16 value is valid for a nullable partition column.
+    #[cfg(feature = "float16")]
+    #[test]
+    fn test_validate_float16_null_returns_ok_nullable() {
+        assert_type_ok_nullable(DataType::FLOAT16, Scalar::Null(DataType::FLOAT16));
     }
 
     /// Null skips the value type check even when the `Scalar::Null` inner type does not match

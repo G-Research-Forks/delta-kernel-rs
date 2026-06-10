@@ -3,6 +3,8 @@
 use std::sync::Arc;
 
 use buoyant_kernel as delta_kernel;
+#[cfg(feature = "float16")]
+use delta_kernel::arrow::array::Float16Array;
 #[cfg(feature = "nanosecond-timestamps")]
 use delta_kernel::arrow::array::TimestampNanosecondArray;
 use delta_kernel::arrow::array::{
@@ -21,6 +23,8 @@ use delta_kernel::object_store::ObjectStoreExt as _;
 use delta_kernel::schema::{DataType, StructField, StructType};
 use delta_kernel::transaction::create_table::create_table as kernel_create_table;
 use delta_kernel::{Engine, Error as KernelError, Snapshot};
+#[cfg(feature = "float16")]
+use half::f16;
 use itertools::Itertools;
 use rstest::rstest;
 use serde_json::Deserializer;
@@ -43,7 +47,7 @@ async fn test_append_timestamp_ntz() -> Result<(), Box<dyn std::error::Error>> {
         -62135596800000000i64, // 0001-01-01T00:00:00.000000 (near min valid timestamp)
     ];
 
-    test_append_timestamp(
+    test_append_round_trip(
         DataType::TIMESTAMP_NTZ,
         "ts_ntz",
         "test_table_timestamp_ntz",
@@ -65,7 +69,7 @@ async fn test_append_timestamp_nanos() -> Result<(), Box<dyn std::error::Error>>
         -62135596800000000i64,
     ];
 
-    test_append_timestamp(
+    test_append_round_trip(
         DataType::TIMESTAMP_NANOS,
         "ts_nanos",
         "test_table_timestamp_nanos",
@@ -87,7 +91,7 @@ async fn test_append_timestamp_nanos_ntz() -> Result<(), Box<dyn std::error::Err
         -62135596800000000i64,
     ];
 
-    test_append_timestamp(
+    test_append_round_trip(
         DataType::TIMESTAMP_NANOS_NTZ,
         "ts_nanos_ntz",
         "test_table_timestamp_nanos_ntz",
@@ -97,12 +101,37 @@ async fn test_append_timestamp_nanos_ntz() -> Result<(), Box<dyn std::error::Err
     .await
 }
 
-async fn test_append_timestamp(
+#[cfg(feature = "float16")]
+#[tokio::test]
+async fn test_append_float16() -> Result<(), Box<dyn std::error::Error>> {
+    let f16_values = vec![
+        f16::from_f32(0.0),
+        f16::from_f32(1.5),
+        f16::from_f32(-2.25),
+        f16::from_f32(0.125),
+        f16::MAX,
+        f16::MIN,
+        f16::INFINITY,
+        f16::NEG_INFINITY,
+        f16::NAN,
+    ];
+
+    test_append_round_trip(
+        DataType::FLOAT16,
+        "f16",
+        "test_table_float16",
+        vec!["float16"],
+        Arc::new(Float16Array::from(f16_values)),
+    )
+    .await
+}
+
+async fn test_append_round_trip(
     dtype: DataType,
     col: &str,
     path: &str,
     features: Vec<&str>,
-    timestamp_values: ArrayRef,
+    values: ArrayRef,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // setup tracing
     let _ = tracing_subscriber::fmt::try_init();
@@ -127,10 +156,7 @@ async fn test_append_timestamp(
     let mut txn = test_utils::load_and_begin_transaction(table_url.clone(), &engine)?
         .with_engine_info("default engine");
 
-    let data = RecordBatch::try_new(
-        Arc::new(schema.as_ref().try_into_arrow()?),
-        vec![timestamp_values],
-    )?;
+    let data = RecordBatch::try_new(Arc::new(schema.as_ref().try_into_arrow()?), vec![values])?;
 
     // Write data
     let engine = Arc::new(engine);

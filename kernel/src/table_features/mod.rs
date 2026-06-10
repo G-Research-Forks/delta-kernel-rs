@@ -10,6 +10,8 @@ pub(crate) use column_mapping::{
     validate_column_mapping_id, SeenColumnMappingAnnotations,
 };
 use delta_kernel_derive::internal_api;
+#[cfg(feature = "float16")]
+pub(crate) use float16::{schema_contains_float16, validate_float16_feature_support};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, Display as StrumDisplay, EnumCount, EnumIter, EnumString};
@@ -29,6 +31,8 @@ use crate::table_properties::TableProperties;
 use crate::{DeltaResult, Error};
 
 mod column_mapping;
+#[cfg(feature = "float16")]
+mod float16;
 #[cfg(feature = "nanosecond-timestamps")]
 mod timestamp_nanos;
 mod timestamp_ntz;
@@ -142,6 +146,9 @@ pub(crate) enum TableFeature {
     ColumnMapping,
     /// Deletion vectors for merge, update, delete
     DeletionVectors,
+    /// Float16 primitive datatype
+    #[cfg(feature = "float16")]
+    Float16,
     /// Nanosecond resolution timestamps
     #[cfg(feature = "nanosecond-timestamps")]
     #[strum(serialize = "timestampNanos")]
@@ -528,6 +535,16 @@ static DELETION_VECTORS_INFO: FeatureInfo = FeatureInfo {
     }),
 };
 
+#[cfg(feature = "float16")]
+#[allow(dead_code)]
+static FLOAT16_INFO: FeatureInfo = FeatureInfo {
+    feature_type: FeatureType::ReaderWriter,
+    min_legacy_version: None,
+    feature_requirements: &[],
+    kernel_support: KernelSupport::Supported,
+    enablement_check: EnablementCheck::AlwaysIfSupported,
+};
+
 #[cfg(feature = "nanosecond-timestamps")]
 #[allow(dead_code)]
 static TIMESTAMP_NANOSECOND_INFO: FeatureInfo = FeatureInfo {
@@ -652,6 +669,8 @@ impl TableFeature {
             | TableFeature::VariantType
             | TableFeature::VariantTypePreview
             | TableFeature::VariantShreddingPreview => FeatureType::ReaderWriter,
+            #[cfg(feature = "float16")]
+            TableFeature::Float16 => FeatureType::ReaderWriter,
             #[cfg(feature = "nanosecond-timestamps")]
             TableFeature::TimestampNanos => FeatureType::ReaderWriter,
             TableFeature::AppendOnly
@@ -709,6 +728,8 @@ impl TableFeature {
             TableFeature::CatalogOwnedPreview => &CATALOG_OWNED_PREVIEW_INFO,
             TableFeature::ColumnMapping => &COLUMN_MAPPING_INFO,
             TableFeature::DeletionVectors => &DELETION_VECTORS_INFO,
+            #[cfg(feature = "float16")]
+            TableFeature::Float16 => &FLOAT16_INFO,
             #[cfg(feature = "nanosecond-timestamps")]
             TableFeature::TimestampNanos => &TIMESTAMP_NANOSECOND_INFO,
             TableFeature::TimestampWithoutTimezone => &TIMESTAMP_WITHOUT_TIMEZONE_INFO,
@@ -848,6 +869,8 @@ mod tests {
                 TableFeature::CatalogOwnedPreview => "catalogOwned-preview",
                 TableFeature::ColumnMapping => "columnMapping",
                 TableFeature::DeletionVectors => "deletionVectors",
+                #[cfg(feature = "float16")]
+                TableFeature::Float16 => "float16",
                 #[cfg(feature = "nanosecond-timestamps")]
                 TableFeature::TimestampNanos => "timestampNanos",
                 TableFeature::TimestampWithoutTimezone => "timestampNtz",

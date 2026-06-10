@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
+#[cfg(feature = "float16")]
+use half::f16;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -229,6 +231,9 @@ pub enum Scalar {
     Short(i16),
     /// 8bit integer
     Byte(i8),
+    #[cfg(feature = "float16")]
+    /// 16bit floating point
+    Float16(f16),
     /// 32bit floating point
     Float(f32),
     /// 64bit floating point
@@ -270,6 +275,8 @@ impl Scalar {
             Self::Long(_) => DataType::LONG,
             Self::Short(_) => DataType::SHORT,
             Self::Byte(_) => DataType::BYTE,
+            #[cfg(feature = "float16")]
+            Self::Float16(_) => DataType::FLOAT16,
             Self::Float(_) => DataType::FLOAT,
             Self::Double(_) => DataType::DOUBLE,
             Self::String(_) => DataType::STRING,
@@ -372,6 +379,8 @@ impl Display for Scalar {
             Self::Long(i) => write!(f, "{i}"),
             Self::Short(i) => write!(f, "{i}"),
             Self::Byte(i) => write!(f, "{i}"),
+            #[cfg(feature = "float16")]
+            Self::Float16(fl) => write!(f, "{fl}"),
             Self::Float(fl) => write!(f, "{fl}"),
             Self::Double(fl) => write!(f, "{fl}"),
             Self::String(s) => write!(f, "'{s}'"),
@@ -487,6 +496,10 @@ impl Scalar {
             (Short(_), _) => None,
             (Byte(a), Byte(b)) => a.partial_cmp(b),
             (Byte(_), _) => None,
+            #[cfg(feature = "float16")]
+            (Float16(a), Float16(b)) => a.partial_cmp(b),
+            #[cfg(feature = "float16")]
+            (Float16(_), _) => None,
             (Float(a), Float(b)) => a.partial_cmp(b),
             (Float(_), _) => None,
             (Double(a), Double(b)) => a.partial_cmp(b),
@@ -545,6 +558,13 @@ impl From<i32> for Scalar {
 impl From<i64> for Scalar {
     fn from(i: i64) -> Self {
         Self::Long(i)
+    }
+}
+
+#[cfg(feature = "float16")]
+impl From<f16> for Scalar {
+    fn from(i: f16) -> Self {
+        Self::Float16(i)
     }
 }
 
@@ -731,6 +751,8 @@ impl PrimitiveType {
             Short => self.parse_str_as_scalar(raw, Scalar::Short),
             Integer => self.parse_str_as_scalar(raw, Scalar::Integer),
             Long => self.parse_str_as_scalar(raw, Scalar::Long),
+            #[cfg(feature = "float16")]
+            Float16 => self.parse_str_as_scalar(raw, Scalar::Float16),
             Float => self.parse_str_as_scalar(raw, Scalar::Float),
             Double => self.parse_str_as_scalar(raw, Scalar::Double),
             Boolean => {
@@ -1256,6 +1278,61 @@ mod tests {
             Scalar::TimestampNanosNtz(123),
             DataType::TIMESTAMP_NANOS_NTZ,
         );
+    }
+
+    #[cfg(feature = "float16")]
+    #[test]
+    fn test_float16_parse() {
+        let assert_float16_eq = |raw, expected: f16| {
+            let scalar = PrimitiveType::Float16.parse_scalar(raw).unwrap();
+            assert_eq!(scalar, Scalar::Float16(expected));
+        };
+        assert_float16_eq("1.5", f16::from_f32(1.5));
+        assert_float16_eq("-2.25", f16::from_f32(-2.25));
+        assert_float16_eq("0", f16::from_f32(0.0));
+        assert_float16_eq("inf", f16::INFINITY);
+        assert_float16_eq("-inf", f16::NEG_INFINITY);
+
+        // Empty string parses as null
+        assert_eq!(
+            PrimitiveType::Float16.parse_scalar("").unwrap(),
+            Scalar::Null(DataType::FLOAT16),
+        );
+
+        // NaN parses, but NaN != NaN, so verify via is_nan()
+        let Scalar::Float16(parsed) = PrimitiveType::Float16.parse_scalar("NaN").unwrap() else {
+            panic!("Expected Float16 scalar");
+        };
+        assert!(parsed.is_nan());
+
+        // Unparseable input fails
+        PrimitiveType::Float16
+            .parse_scalar("not a number")
+            .expect_err("should have failed");
+    }
+
+    #[cfg(feature = "float16")]
+    #[test]
+    fn test_partial_eq_cmp_float16() {
+        test_partial_eq(
+            Scalar::Float16(f16::from_f32(1.0)),
+            Scalar::Float16(f16::from_f32(2.0)),
+            DataType::FLOAT16,
+        );
+        test_partial_cmp(
+            Scalar::Float16(f16::from_f32(1.0)),
+            Scalar::Float16(f16::from_f32(2.0)),
+            DataType::FLOAT16,
+        );
+
+        let nan = Scalar::Float16(f16::NAN);
+        let one = Scalar::Float16(f16::from_f32(1.0));
+        assert_eq!(nan.logical_partial_cmp(&nan), None);
+        assert_eq!(nan.logical_partial_cmp(&one), None);
+        assert_eq!(one.logical_partial_cmp(&nan), None);
+        assert!(!nan.logical_eq(&nan));
+        assert!(!nan.logical_eq(&one));
+        assert!(!one.logical_eq(&nan));
     }
 
     #[test]

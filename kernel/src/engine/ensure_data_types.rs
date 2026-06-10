@@ -240,6 +240,8 @@ fn check_cast_compat(
         (Int8, Int16 | Int32 | Int64 | Float64) => Ok(DataTypeCompat::NeedsCast(target_type)),
         (Int16, Int32 | Int64 | Float64) => Ok(DataTypeCompat::NeedsCast(target_type)),
         (Int32, Int64 | Float64) => Ok(DataTypeCompat::NeedsCast(target_type)),
+        (Float16, Float32) => Ok(DataTypeCompat::NeedsCast(target_type)),
+        (Float16, Float64) => Ok(DataTypeCompat::NeedsCast(target_type)),
         (Float32, Float64) => Ok(DataTypeCompat::NeedsCast(target_type)),
         (_, Decimal128(p, s)) if can_upcast_to_decimal(source_type, *p, *s) => {
             Ok(DataTypeCompat::NeedsCast(target_type))
