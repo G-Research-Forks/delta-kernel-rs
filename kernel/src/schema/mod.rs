@@ -1734,6 +1734,14 @@ pub enum PrimitiveType {
     #[cfg(feature = "float16")]
     /// f16: 2-byte half-precision floating-point numbers
     Float16,
+    /// u8: 1-byte unsigned integer. Range: 0 to 255
+    Uint8,
+    /// u16: 2-byte unsigned integer. Range: 0 to 65535
+    Uint16,
+    /// u32: 4-byte unsigned integer. Range: 0 to 4294967295
+    Uint32,
+    /// u64: 8-byte unsigned integer. Range: 0 to 18446744073709551615
+    Uint64,
     /// f32: 4-byte single-precision floating-point numbers
     Float,
     /// f64: 8-byte double-precision floating-point numbers
@@ -1857,6 +1865,10 @@ impl<'de> serde::Deserialize<'de> for PrimitiveType {
             "byte" => Ok(PrimitiveType::Byte),
             #[cfg(feature = "float16")]
             "float16" => Ok(PrimitiveType::Float16),
+            "uint8" => Ok(PrimitiveType::Uint8),
+            "uint16" => Ok(PrimitiveType::Uint16),
+            "uint32" => Ok(PrimitiveType::Uint32),
+            "uint64" => Ok(PrimitiveType::Uint64),
             "float" => Ok(PrimitiveType::Float),
             "double" => Ok(PrimitiveType::Double),
             "boolean" => Ok(PrimitiveType::Boolean),
@@ -1912,6 +1924,10 @@ impl Display for PrimitiveType {
             PrimitiveType::Byte => write!(f, "byte"),
             #[cfg(feature = "float16")]
             PrimitiveType::Float16 => write!(f, "float16"),
+            PrimitiveType::Uint8 => write!(f, "uint8"),
+            PrimitiveType::Uint16 => write!(f, "uint16"),
+            PrimitiveType::Uint32 => write!(f, "uint32"),
+            PrimitiveType::Uint64 => write!(f, "uint64"),
             PrimitiveType::Float => write!(f, "float"),
             PrimitiveType::Double => write!(f, "double"),
             PrimitiveType::Boolean => write!(f, "boolean"),
@@ -2052,6 +2068,10 @@ impl DataType {
     pub const BYTE: Self = DataType::Primitive(PrimitiveType::Byte);
     #[cfg(feature = "float16")]
     pub const FLOAT16: Self = DataType::Primitive(PrimitiveType::Float16);
+    pub const UINT8: Self = DataType::Primitive(PrimitiveType::Uint8);
+    pub const UINT16: Self = DataType::Primitive(PrimitiveType::Uint16);
+    pub const UINT32: Self = DataType::Primitive(PrimitiveType::Uint32);
+    pub const UINT64: Self = DataType::Primitive(PrimitiveType::Uint64);
     pub const FLOAT: Self = DataType::Primitive(PrimitiveType::Float);
     pub const DOUBLE: Self = DataType::Primitive(PrimitiveType::Double);
     pub const BOOLEAN: Self = DataType::Primitive(PrimitiveType::Boolean);
@@ -2289,6 +2309,25 @@ mod tests {
     use crate::utils::test_utils::{
         assert_result_error_with_message, test_deep_nested_schema_missing_leaf_cm,
     };
+
+    #[test]
+    fn unsigned_primitive_types_roundtrip_serde_and_display() {
+        use crate::schema::PrimitiveType;
+        for (variant, s) in [
+            (PrimitiveType::Uint8, "uint8"),
+            (PrimitiveType::Uint16, "uint16"),
+            (PrimitiveType::Uint32, "uint32"),
+            (PrimitiveType::Uint64, "uint64"),
+        ] {
+            assert_eq!(variant.to_string(), s);
+            assert_eq!(
+                serde_json::to_value(&variant).unwrap(),
+                serde_json::json!(s)
+            );
+            let de: PrimitiveType = serde_json::from_value(serde_json::json!(s)).unwrap();
+            assert_eq!(de, variant);
+        }
+    }
 
     fn example_schema_metadata() -> &'static str {
         r#"

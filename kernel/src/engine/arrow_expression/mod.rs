@@ -94,6 +94,10 @@ impl Scalar {
             Byte(val) => append_val_n_as!(array::Int8Builder, *val),
             #[cfg(feature = "float16")]
             Float16(val) => append_val_n_as!(array::Float16Builder, *val),
+            Uint8(val) => append_val_n_as!(array::UInt8Builder, *val),
+            Uint16(val) => append_val_n_as!(array::UInt16Builder, *val),
+            Uint32(val) => append_val_n_as!(array::UInt32Builder, *val),
+            Uint64(val) => append_val_n_as!(array::UInt64Builder, *val),
             Float(val) => append_val_n_as!(array::Float32Builder, *val),
             Double(val) => append_val_n_as!(array::Float64Builder, *val),
             String(val) => append_val_as!(array::StringBuilder, val),
@@ -180,6 +184,10 @@ impl Scalar {
             DataType::BYTE => append_nulls_as!(array::Int8Builder),
             #[cfg(feature = "float16")]
             DataType::FLOAT16 => append_nulls_as!(array::Float16Builder),
+            DataType::UINT8 => append_nulls_as!(array::UInt8Builder),
+            DataType::UINT16 => append_nulls_as!(array::UInt16Builder),
+            DataType::UINT32 => append_nulls_as!(array::UInt32Builder),
+            DataType::UINT64 => append_nulls_as!(array::UInt64Builder),
             DataType::FLOAT => append_nulls_as!(array::Float32Builder),
             DataType::DOUBLE => append_nulls_as!(array::Float64Builder),
             DataType::STRING => append_nulls_as!(array::StringBuilder),

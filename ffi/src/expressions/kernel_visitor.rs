@@ -548,6 +548,13 @@ impl NullTypeTag {
                 PrimitiveType::TimestampNanosNtz => (Self::TimestampNanosNtz, 0, 0),
                 PrimitiveType::Timestamp => (Self::Timestamp, 0, 0),
                 PrimitiveType::TimestampNtz => (Self::TimestampNtz, 0, 0),
+                PrimitiveType::Uint8
+                | PrimitiveType::Uint16
+                | PrimitiveType::Uint32
+                | PrimitiveType::Uint64 => {
+                    // No FFI null tag for unsigned integers; the sentinel avoids a new discriminant
+                    (Self::NonPrimitive, 0, 0)
+                }
                 PrimitiveType::Decimal(dt) => (Self::Decimal, dt.precision(), dt.scale()),
             },
             _ => (Self::NonPrimitive, 0, 0),

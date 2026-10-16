@@ -1378,6 +1378,10 @@ fn scalar_for_type(data_type: &DataType, seed: usize) -> Scalar {
                 Scalar::decimal(bits, dt.precision(), dt.scale())
                     .expect("test seed produced invalid decimal")
             }
+            PrimitiveType::Uint8 => Scalar::Uint8((seed % 256) as u8),
+            PrimitiveType::Uint16 => Scalar::Uint16((seed % 65536) as u16),
+            PrimitiveType::Uint32 => Scalar::Uint32((seed as u32).wrapping_mul(1000)),
+            PrimitiveType::Uint64 => Scalar::Uint64((seed as u64).wrapping_mul(1000)),
         },
         other => panic!("partition columns must be primitive types, got: {other:?}"),
     }

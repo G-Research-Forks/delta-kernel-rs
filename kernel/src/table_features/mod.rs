@@ -176,6 +176,11 @@ pub(crate) enum TableFeature {
     #[strum(serialize = "variantShredding-preview")]
     #[serde(rename = "variantShredding-preview")]
     VariantShreddingPreview,
+    /// Unsigned integer column types (uint8/uint16/uint32/uint64). Experimental: serializes to
+    /// `unsignedIntegerTypes-dev` per the Delta RFC process for in-development features.
+    #[strum(serialize = "unsignedIntegerTypes-dev")]
+    #[serde(rename = "unsignedIntegerTypes-dev")]
+    UnsignedIntegerTypes,
 
     #[serde(untagged)]
     #[strum(default)]
@@ -638,6 +643,14 @@ static VARIANT_SHREDDING_PREVIEW_INFO: FeatureInfo = FeatureInfo {
     enablement_check: EnablementCheck::AlwaysIfSupported,
 };
 
+static UNSIGNED_INTEGER_TYPES_INFO: FeatureInfo = FeatureInfo {
+    feature_type: FeatureType::ReaderWriter,
+    min_legacy_version: None,
+    feature_requirements: &[],
+    kernel_support: KernelSupport::Supported,
+    enablement_check: EnablementCheck::AlwaysIfSupported,
+};
+
 /// By definition, kernel cannot know how to handle unknown features and must assume they're always
 /// enabled if supported in protocol. However, the read path ignores all writer-only features,
 /// including unknown ones. Unknown features are never inferred from legacy protocol versions.
@@ -668,7 +681,8 @@ impl TableFeature {
             | TableFeature::VacuumProtocolCheck
             | TableFeature::VariantType
             | TableFeature::VariantTypePreview
-            | TableFeature::VariantShreddingPreview => FeatureType::ReaderWriter,
+            | TableFeature::VariantShreddingPreview
+            | TableFeature::UnsignedIntegerTypes => FeatureType::ReaderWriter,
             #[cfg(feature = "float16")]
             TableFeature::Float16 => FeatureType::ReaderWriter,
             #[cfg(feature = "nanosecond-timestamps")]
@@ -740,6 +754,7 @@ impl TableFeature {
             TableFeature::VariantType => &VARIANT_TYPE_INFO,
             TableFeature::VariantTypePreview => &VARIANT_TYPE_PREVIEW_INFO,
             TableFeature::VariantShreddingPreview => &VARIANT_SHREDDING_PREVIEW_INFO,
+            TableFeature::UnsignedIntegerTypes => &UNSIGNED_INTEGER_TYPES_INFO,
 
             // Unknown features: not supported by kernel, no legacy version inference.
             TableFeature::Unknown(_) => &UNKNOWN_FEATURE_INFO,
@@ -881,6 +896,7 @@ mod tests {
                 TableFeature::VariantType => "variantType",
                 TableFeature::VariantTypePreview => "variantType-preview",
                 TableFeature::VariantShreddingPreview => "variantShredding-preview",
+                TableFeature::UnsignedIntegerTypes => "unsignedIntegerTypes-dev",
                 TableFeature::Unknown(_) => continue, // tested in test_unknown_features
             };
 
@@ -895,5 +911,17 @@ mod tests {
             let deserialized: TableFeature = serde_json::from_str(&serialized).unwrap();
             assert_eq!(deserialized, feature);
         }
+    }
+
+    #[test]
+    fn unsigned_integer_types_feature_name_roundtrips() {
+        let f = TableFeature::UnsignedIntegerTypes;
+        assert_eq!(
+            serde_json::to_value(&f).unwrap(),
+            serde_json::json!("unsignedIntegerTypes-dev")
+        );
+        let de: TableFeature =
+            serde_json::from_value(serde_json::json!("unsignedIntegerTypes-dev")).unwrap();
+        assert_eq!(de, f);
     }
 }
