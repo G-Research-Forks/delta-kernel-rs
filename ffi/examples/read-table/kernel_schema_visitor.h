@@ -22,6 +22,16 @@ uintptr_t visit_schema_item(SchemaItem* item, KernelSchemaVisitorState *state, C
     visit_res = visit_field_byte(state, name, item->is_nullable, allocate_error);
   } else if (strcmp(item->type, "long") == 0) {
     visit_res = visit_field_long(state, name, item->is_nullable, allocate_error);
+#ifdef DEFINE_UNSIGNED_INTEGERS
+  } else if (strcmp(item->type, "uint8") == 0) {
+    visit_res = visit_field_uint8(state, name, item->is_nullable, allocate_error);
+  } else if (strcmp(item->type, "uint16") == 0) {
+    visit_res = visit_field_uint16(state, name, item->is_nullable, allocate_error);
+  } else if (strcmp(item->type, "uint32") == 0) {
+    visit_res = visit_field_uint32(state, name, item->is_nullable, allocate_error);
+  } else if (strcmp(item->type, "uint64") == 0) {
+    visit_res = visit_field_uint64(state, name, item->is_nullable, allocate_error);
+#endif
   } else if (strcmp(item->type, "float") == 0) {
     visit_res = visit_field_float(state, name, item->is_nullable, allocate_error);
   } else if (strcmp(item->type, "double") == 0) {
