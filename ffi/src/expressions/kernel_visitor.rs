@@ -307,6 +307,9 @@ pub extern "C" fn visit_expression_literal_byte(
     wrap_expression(state, Expression::literal(value))
 }
 
+/// EXPERIMENTAL. Visit a 8-bit unsigned `uint8` literal and return its expression id.
+///
+/// Only available when the `unsigned-integers` Cargo feature is enabled.
 #[cfg(feature = "unsigned-integers")]
 #[no_mangle]
 pub extern "C" fn visit_expression_literal_uint8(
@@ -316,6 +319,9 @@ pub extern "C" fn visit_expression_literal_uint8(
     wrap_expression(state, Expression::literal(value))
 }
 
+/// EXPERIMENTAL. Visit a 16-bit unsigned `uint16` literal and return its expression id.
+///
+/// Only available when the `unsigned-integers` Cargo feature is enabled.
 #[cfg(feature = "unsigned-integers")]
 #[no_mangle]
 pub extern "C" fn visit_expression_literal_uint16(
@@ -325,6 +331,9 @@ pub extern "C" fn visit_expression_literal_uint16(
     wrap_expression(state, Expression::literal(value))
 }
 
+/// EXPERIMENTAL. Visit a 32-bit unsigned `uint32` literal and return its expression id.
+///
+/// Only available when the `unsigned-integers` Cargo feature is enabled.
 #[cfg(feature = "unsigned-integers")]
 #[no_mangle]
 pub extern "C" fn visit_expression_literal_uint32(
@@ -334,6 +343,9 @@ pub extern "C" fn visit_expression_literal_uint32(
     wrap_expression(state, Expression::literal(value))
 }
 
+/// EXPERIMENTAL. Visit a 64-bit unsigned `uint64` literal and return its expression id.
+///
+/// Only available when the `unsigned-integers` Cargo feature is enabled.
 #[cfg(feature = "unsigned-integers")]
 #[no_mangle]
 pub extern "C" fn visit_expression_literal_uint64(
