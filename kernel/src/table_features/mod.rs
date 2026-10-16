@@ -22,6 +22,8 @@ pub(crate) use timestamp_nanos::{
 pub(crate) use timestamp_ntz::{
     schema_contains_timestamp_ntz, validate_timestamp_ntz_feature_support,
 };
+#[cfg(feature = "unsigned-integers")]
+pub(crate) use unsigned_integers::validate_unsigned_integer_types_feature_support;
 
 use crate::actions::Protocol;
 use crate::expressions::Scalar;
@@ -36,6 +38,8 @@ mod float16;
 #[cfg(feature = "nanosecond-timestamps")]
 mod timestamp_nanos;
 mod timestamp_ntz;
+#[cfg(feature = "unsigned-integers")]
+mod unsigned_integers;
 
 /// Minimum reader/writer protocol version that the kernel can handle.
 pub const MIN_VALID_RW_VERSION: i32 = 1;
