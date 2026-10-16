@@ -1284,3 +1284,41 @@ fn extract_unsigned_stats_uses_unsigned_ordering() {
         Some(Scalar::Uint32(4294967295)),
     );
 }
+
+/// Stats read from the deprecated min/max fields were computed with signed ordering by older
+/// writers, so they must not be used for unsigned columns.
+#[cfg(feature = "unsigned-integers")]
+#[rstest::rstest]
+#[case::uint8(DataType::UINT8, Statistics::int32(Some(-56), Some(1), None, Some(0), true))]
+#[case::uint16(DataType::UINT16, Statistics::int32(Some(-1), Some(1), None, Some(0), true))]
+#[case::uint32(
+    DataType::UINT32,
+    Statistics::int32(Some(i32::MIN), Some(1), None, Some(0), true)
+)]
+#[case::uint64(
+    DataType::UINT64,
+    Statistics::int64(Some(i64::MIN), Some(1), None, Some(0), true)
+)]
+fn extract_unsigned_stats_ignores_deprecated_min_max(
+    #[case] data_type: DataType,
+    #[case] stats: Statistics,
+) {
+    assert!(stats.is_min_max_deprecated());
+    assert_eq!(extract_min_scalar(&data_type, &stats), None);
+    assert_eq!(extract_max_scalar(&data_type, &stats), None);
+}
+
+/// Signed integer stats from the deprecated min/max fields remain usable, since signed ordering
+/// is correct for them.
+#[test]
+fn extract_signed_stats_uses_deprecated_min_max() {
+    let stats = Statistics::int64(Some(-5), Some(10), None, Some(0), true);
+    assert_eq!(
+        extract_min_scalar(&DataType::LONG, &stats),
+        Some(Scalar::Long(-5))
+    );
+    assert_eq!(
+        extract_max_scalar(&DataType::LONG, &stats),
+        Some(Scalar::Long(10))
+    );
+}

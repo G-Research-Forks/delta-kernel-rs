@@ -215,7 +215,11 @@ fn extract_min_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar
         (Decimal(..), _) => return None,
         // Unsigned ints are stored as physical Int32/Int64 with an unsigned logical type, and
         // parquet computes their min/max with unsigned sort order. parquet-rs reports the stat as
-        // the physical signed value, so we reinterpret the bits back to unsigned.
+        // the physical signed value, so we reinterpret the bits back to unsigned. Stats from the
+        // deprecated min/max fields were computed with signed ordering by older writers, so they
+        // cannot be trusted for unsigned columns.
+        #[cfg(feature = "unsigned-integers")]
+        (Uint8 | Uint16 | Uint32 | Uint64, s) if s.is_min_max_deprecated() => return None,
         #[cfg(feature = "unsigned-integers")]
         (Uint8, Statistics::Int32(s)) => (*s.min_opt()? as i8 as u8).into(),
         #[cfg(feature = "unsigned-integers")]
@@ -284,7 +288,11 @@ fn extract_max_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar
         (Decimal(..), _) => return None,
         // Unsigned ints are stored as physical Int32/Int64 with an unsigned logical type, and
         // parquet computes their min/max with unsigned sort order. parquet-rs reports the stat as
-        // the physical signed value, so we reinterpret the bits back to unsigned.
+        // the physical signed value, so we reinterpret the bits back to unsigned. Stats from the
+        // deprecated min/max fields were computed with signed ordering by older writers, so they
+        // cannot be trusted for unsigned columns.
+        #[cfg(feature = "unsigned-integers")]
+        (Uint8 | Uint16 | Uint32 | Uint64, s) if s.is_min_max_deprecated() => return None,
         #[cfg(feature = "unsigned-integers")]
         (Uint8, Statistics::Int32(s)) => (*s.max_opt()? as i8 as u8).into(),
         #[cfg(feature = "unsigned-integers")]
