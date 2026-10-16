@@ -131,6 +131,46 @@ pub struct EngineSchemaVisitor {
         metadata: &CStringMap,
     ),
 
+    /// EXPERIMENTAL. Visit a `uint8` (8-bit unsigned integer) belonging to the list identified by
+    /// `sibling_list_id`.
+    pub visit_uint8: extern "C" fn(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        name: KernelStringSlice,
+        is_nullable: bool,
+        metadata: &CStringMap,
+    ),
+
+    /// EXPERIMENTAL. Visit a `uint16` (16-bit unsigned integer) belonging to the list identified
+    /// by `sibling_list_id`.
+    pub visit_uint16: extern "C" fn(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        name: KernelStringSlice,
+        is_nullable: bool,
+        metadata: &CStringMap,
+    ),
+
+    /// EXPERIMENTAL. Visit a `uint32` (32-bit unsigned integer) belonging to the list identified
+    /// by `sibling_list_id`.
+    pub visit_uint32: extern "C" fn(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        name: KernelStringSlice,
+        is_nullable: bool,
+        metadata: &CStringMap,
+    ),
+
+    /// EXPERIMENTAL. Visit a `uint64` (64-bit unsigned integer) belonging to the list identified
+    /// by `sibling_list_id`.
+    pub visit_uint64: extern "C" fn(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        name: KernelStringSlice,
+        is_nullable: bool,
+        metadata: &CStringMap,
+    ),
+
     /// Visit a `float16` belonging to the list identified by `sibling_list_id`.
     pub visit_float16: extern "C" fn(
         data: *mut c_void,
@@ -365,13 +405,13 @@ fn visit_schema_impl(schema: &StructType, visitor: &mut EngineSchemaVisitor) -> 
             #[cfg(feature = "nanosecond-timestamps")]
             &DataType::TIMESTAMP_NANOS_NTZ => call!(visit_timestamp_nanos_ntz),
             #[cfg(feature = "unsigned-integers")]
-            &DataType::UINT8 | &DataType::UINT16 | &DataType::UINT32 | &DataType::UINT64 => {
-                // No visit_uint* callbacks yet (adding them is a C ABI change); skip rather than
-                // mapping to a signed callback, which would misrepresent the column type.
-                tracing::warn!(
-                    "Skipping unsupported unsigned integer field '{name}' in FFI schema visit"
-                );
-            }
+            &DataType::UINT8 => call!(visit_uint8),
+            #[cfg(feature = "unsigned-integers")]
+            &DataType::UINT16 => call!(visit_uint16),
+            #[cfg(feature = "unsigned-integers")]
+            &DataType::UINT32 => call!(visit_uint32),
+            #[cfg(feature = "unsigned-integers")]
+            &DataType::UINT64 => call!(visit_uint64),
         }
     }
 

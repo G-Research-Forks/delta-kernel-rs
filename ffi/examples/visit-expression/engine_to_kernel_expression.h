@@ -29,6 +29,25 @@ uintptr_t convert_engine_to_kernel_literal(
       return visit_expression_literal_short(state, lit->value.short_data);
     case Byte:
       return visit_expression_literal_byte(state, lit->value.byte_data);
+#ifdef DEFINE_UNSIGNED_INTEGERS
+    case Uint8:
+      return visit_expression_literal_uint8(state, lit->value.uint8_data);
+    case Uint16:
+      return visit_expression_literal_uint16(state, lit->value.uint16_data);
+    case Uint32:
+      return visit_expression_literal_uint32(state, lit->value.uint32_data);
+    case Uint64:
+      return visit_expression_literal_uint64(state, lit->value.uint64_data);
+#else
+    case Uint8:
+    case Uint16:
+    case Uint32:
+    case Uint64:
+      // Kernel only emits unsigned literals when built with the `unsigned-integers` feature, in
+      // which case this example must be compiled with DEFINE_UNSIGNED_INTEGERS.
+      fprintf(stderr, "Unsigned integer literals require DEFINE_UNSIGNED_INTEGERS\n");
+      abort();
+#endif
     case Float:
       return visit_expression_literal_float(state, lit->value.float_data);
     case Double:
