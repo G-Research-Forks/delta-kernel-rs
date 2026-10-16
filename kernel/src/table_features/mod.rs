@@ -23,7 +23,9 @@ pub(crate) use timestamp_ntz::{
     schema_contains_timestamp_ntz, validate_timestamp_ntz_feature_support,
 };
 #[cfg(feature = "unsigned-integers")]
-pub(crate) use unsigned_integers::validate_unsigned_integer_types_feature_support;
+pub(crate) use unsigned_integers::{
+    schema_contains_unsigned_integers, validate_unsigned_integer_types_feature_support,
+};
 
 use crate::actions::Protocol;
 use crate::expressions::Scalar;
