@@ -1734,12 +1734,16 @@ pub enum PrimitiveType {
     #[cfg(feature = "float16")]
     /// f16: 2-byte half-precision floating-point numbers
     Float16,
+    #[cfg(feature = "unsigned-integers")]
     /// u8: 1-byte unsigned integer. Range: 0 to 255
     Uint8,
+    #[cfg(feature = "unsigned-integers")]
     /// u16: 2-byte unsigned integer. Range: 0 to 65535
     Uint16,
+    #[cfg(feature = "unsigned-integers")]
     /// u32: 4-byte unsigned integer. Range: 0 to 4294967295
     Uint32,
+    #[cfg(feature = "unsigned-integers")]
     /// u64: 8-byte unsigned integer. Range: 0 to 18446744073709551615
     Uint64,
     /// f32: 4-byte single-precision floating-point numbers
@@ -1865,9 +1869,13 @@ impl<'de> serde::Deserialize<'de> for PrimitiveType {
             "byte" => Ok(PrimitiveType::Byte),
             #[cfg(feature = "float16")]
             "float16" => Ok(PrimitiveType::Float16),
+            #[cfg(feature = "unsigned-integers")]
             "uint8" => Ok(PrimitiveType::Uint8),
+            #[cfg(feature = "unsigned-integers")]
             "uint16" => Ok(PrimitiveType::Uint16),
+            #[cfg(feature = "unsigned-integers")]
             "uint32" => Ok(PrimitiveType::Uint32),
+            #[cfg(feature = "unsigned-integers")]
             "uint64" => Ok(PrimitiveType::Uint64),
             "float" => Ok(PrimitiveType::Float),
             "double" => Ok(PrimitiveType::Double),
@@ -1924,9 +1932,13 @@ impl Display for PrimitiveType {
             PrimitiveType::Byte => write!(f, "byte"),
             #[cfg(feature = "float16")]
             PrimitiveType::Float16 => write!(f, "float16"),
+            #[cfg(feature = "unsigned-integers")]
             PrimitiveType::Uint8 => write!(f, "uint8"),
+            #[cfg(feature = "unsigned-integers")]
             PrimitiveType::Uint16 => write!(f, "uint16"),
+            #[cfg(feature = "unsigned-integers")]
             PrimitiveType::Uint32 => write!(f, "uint32"),
+            #[cfg(feature = "unsigned-integers")]
             PrimitiveType::Uint64 => write!(f, "uint64"),
             PrimitiveType::Float => write!(f, "float"),
             PrimitiveType::Double => write!(f, "double"),
@@ -2068,9 +2080,13 @@ impl DataType {
     pub const BYTE: Self = DataType::Primitive(PrimitiveType::Byte);
     #[cfg(feature = "float16")]
     pub const FLOAT16: Self = DataType::Primitive(PrimitiveType::Float16);
+    #[cfg(feature = "unsigned-integers")]
     pub const UINT8: Self = DataType::Primitive(PrimitiveType::Uint8);
+    #[cfg(feature = "unsigned-integers")]
     pub const UINT16: Self = DataType::Primitive(PrimitiveType::Uint16);
+    #[cfg(feature = "unsigned-integers")]
     pub const UINT32: Self = DataType::Primitive(PrimitiveType::Uint32);
+    #[cfg(feature = "unsigned-integers")]
     pub const UINT64: Self = DataType::Primitive(PrimitiveType::Uint64);
     pub const FLOAT: Self = DataType::Primitive(PrimitiveType::Float);
     pub const DOUBLE: Self = DataType::Primitive(PrimitiveType::Double);
@@ -2310,6 +2326,7 @@ mod tests {
         assert_result_error_with_message, test_deep_nested_schema_missing_leaf_cm,
     };
 
+    #[cfg(feature = "unsigned-integers")]
     #[test]
     fn unsigned_primitive_types_roundtrip_serde_and_display() {
         use crate::schema::PrimitiveType;

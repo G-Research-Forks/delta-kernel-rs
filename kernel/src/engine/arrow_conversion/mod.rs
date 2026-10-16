@@ -349,9 +349,13 @@ impl TryFromKernel<&DataType> for ArrowDataType {
                     PrimitiveType::Byte => Ok(ArrowDataType::Int8),
                     #[cfg(feature = "float16")]
                     PrimitiveType::Float16 => Ok(ArrowDataType::Float16),
+                    #[cfg(feature = "unsigned-integers")]
                     PrimitiveType::Uint8 => Ok(ArrowDataType::UInt8),
+                    #[cfg(feature = "unsigned-integers")]
                     PrimitiveType::Uint16 => Ok(ArrowDataType::UInt16),
+                    #[cfg(feature = "unsigned-integers")]
                     PrimitiveType::Uint32 => Ok(ArrowDataType::UInt32),
+                    #[cfg(feature = "unsigned-integers")]
                     PrimitiveType::Uint64 => Ok(ArrowDataType::UInt64),
                     PrimitiveType::Float => Ok(ArrowDataType::Float32),
                     PrimitiveType::Double => Ok(ArrowDataType::Float64),
@@ -565,10 +569,22 @@ impl TryFromArrow<&ArrowDataType> for DataType {
             ArrowDataType::Int32 => Ok(DataType::INTEGER),
             ArrowDataType::Int16 => Ok(DataType::SHORT),
             ArrowDataType::Int8 => Ok(DataType::BYTE),
+            #[cfg(feature = "unsigned-integers")]
             ArrowDataType::UInt64 => Ok(DataType::UINT64),
+            #[cfg(feature = "unsigned-integers")]
             ArrowDataType::UInt32 => Ok(DataType::UINT32),
+            #[cfg(feature = "unsigned-integers")]
             ArrowDataType::UInt16 => Ok(DataType::UINT16),
+            #[cfg(feature = "unsigned-integers")]
             ArrowDataType::UInt8 => Ok(DataType::UINT8),
+            #[cfg(not(feature = "unsigned-integers"))]
+            ArrowDataType::UInt64 => Ok(DataType::LONG), // undocumented type
+            #[cfg(not(feature = "unsigned-integers"))]
+            ArrowDataType::UInt32 => Ok(DataType::INTEGER),
+            #[cfg(not(feature = "unsigned-integers"))]
+            ArrowDataType::UInt16 => Ok(DataType::SHORT),
+            #[cfg(not(feature = "unsigned-integers"))]
+            ArrowDataType::UInt8 => Ok(DataType::BYTE),
             #[cfg(feature = "float16")]
             ArrowDataType::Float16 => Ok(DataType::FLOAT16),
             ArrowDataType::Float32 => Ok(DataType::FLOAT),
@@ -1089,6 +1105,7 @@ mod tests {
         )
     }
 
+    #[cfg(feature = "unsigned-integers")]
     #[test]
     fn unsigned_kernel_arrow_roundtrip() {
         for (k, a) in [

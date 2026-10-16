@@ -176,6 +176,7 @@ pub(crate) enum TableFeature {
     #[strum(serialize = "variantShredding-preview")]
     #[serde(rename = "variantShredding-preview")]
     VariantShreddingPreview,
+    #[cfg(feature = "unsigned-integers")]
     /// Unsigned integer column types (uint8/uint16/uint32/uint64). Experimental: serializes to
     /// `unsignedIntegerTypes-dev` per the Delta RFC process for in-development features.
     #[strum(serialize = "unsignedIntegerTypes-dev")]
@@ -643,6 +644,7 @@ static VARIANT_SHREDDING_PREVIEW_INFO: FeatureInfo = FeatureInfo {
     enablement_check: EnablementCheck::AlwaysIfSupported,
 };
 
+#[cfg(feature = "unsigned-integers")]
 static UNSIGNED_INTEGER_TYPES_INFO: FeatureInfo = FeatureInfo {
     feature_type: FeatureType::ReaderWriter,
     min_legacy_version: None,
@@ -681,8 +683,9 @@ impl TableFeature {
             | TableFeature::VacuumProtocolCheck
             | TableFeature::VariantType
             | TableFeature::VariantTypePreview
-            | TableFeature::VariantShreddingPreview
-            | TableFeature::UnsignedIntegerTypes => FeatureType::ReaderWriter,
+            | TableFeature::VariantShreddingPreview => FeatureType::ReaderWriter,
+            #[cfg(feature = "unsigned-integers")]
+            TableFeature::UnsignedIntegerTypes => FeatureType::ReaderWriter,
             #[cfg(feature = "float16")]
             TableFeature::Float16 => FeatureType::ReaderWriter,
             #[cfg(feature = "nanosecond-timestamps")]
@@ -754,6 +757,7 @@ impl TableFeature {
             TableFeature::VariantType => &VARIANT_TYPE_INFO,
             TableFeature::VariantTypePreview => &VARIANT_TYPE_PREVIEW_INFO,
             TableFeature::VariantShreddingPreview => &VARIANT_SHREDDING_PREVIEW_INFO,
+            #[cfg(feature = "unsigned-integers")]
             TableFeature::UnsignedIntegerTypes => &UNSIGNED_INTEGER_TYPES_INFO,
 
             // Unknown features: not supported by kernel, no legacy version inference.
@@ -896,6 +900,7 @@ mod tests {
                 TableFeature::VariantType => "variantType",
                 TableFeature::VariantTypePreview => "variantType-preview",
                 TableFeature::VariantShreddingPreview => "variantShredding-preview",
+                #[cfg(feature = "unsigned-integers")]
                 TableFeature::UnsignedIntegerTypes => "unsignedIntegerTypes-dev",
                 TableFeature::Unknown(_) => continue, // tested in test_unknown_features
             };
@@ -913,6 +918,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "unsigned-integers")]
     #[test]
     fn unsigned_integer_types_feature_name_roundtrips() {
         let f = TableFeature::UnsignedIntegerTypes;

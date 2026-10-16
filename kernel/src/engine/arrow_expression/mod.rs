@@ -94,9 +94,13 @@ impl Scalar {
             Byte(val) => append_val_n_as!(array::Int8Builder, *val),
             #[cfg(feature = "float16")]
             Float16(val) => append_val_n_as!(array::Float16Builder, *val),
+            #[cfg(feature = "unsigned-integers")]
             Uint8(val) => append_val_n_as!(array::UInt8Builder, *val),
+            #[cfg(feature = "unsigned-integers")]
             Uint16(val) => append_val_n_as!(array::UInt16Builder, *val),
+            #[cfg(feature = "unsigned-integers")]
             Uint32(val) => append_val_n_as!(array::UInt32Builder, *val),
+            #[cfg(feature = "unsigned-integers")]
             Uint64(val) => append_val_n_as!(array::UInt64Builder, *val),
             Float(val) => append_val_n_as!(array::Float32Builder, *val),
             Double(val) => append_val_n_as!(array::Float64Builder, *val),
@@ -184,9 +188,13 @@ impl Scalar {
             DataType::BYTE => append_nulls_as!(array::Int8Builder),
             #[cfg(feature = "float16")]
             DataType::FLOAT16 => append_nulls_as!(array::Float16Builder),
+            #[cfg(feature = "unsigned-integers")]
             DataType::UINT8 => append_nulls_as!(array::UInt8Builder),
+            #[cfg(feature = "unsigned-integers")]
             DataType::UINT16 => append_nulls_as!(array::UInt16Builder),
+            #[cfg(feature = "unsigned-integers")]
             DataType::UINT32 => append_nulls_as!(array::UInt32Builder),
+            #[cfg(feature = "unsigned-integers")]
             DataType::UINT64 => append_nulls_as!(array::UInt64Builder),
             DataType::FLOAT => append_nulls_as!(array::Float32Builder),
             DataType::DOUBLE => append_nulls_as!(array::Float64Builder),

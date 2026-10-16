@@ -9,8 +9,9 @@ use crate::arrow::array::types::Float16Type;
 use crate::arrow::array::types::{
     Date32Type, Decimal128Type, Float32Type, Float64Type, GenericBinaryType, GenericStringType,
     Int16Type, Int32Type, Int64Type, Int8Type, TimestampMicrosecondType, TimestampNanosecondType,
-    UInt16Type, UInt32Type, UInt64Type, UInt8Type,
 };
+#[cfg(feature = "unsigned-integers")]
+use crate::arrow::array::types::{UInt16Type, UInt32Type, UInt64Type, UInt8Type};
 use crate::arrow::array::{
     Array, BinaryViewArray, BooleanArray, GenericByteArray, GenericListArray, GenericListViewArray,
     MapArray, OffsetSizeTrait, PrimitiveArray, RunArray, StringViewArray,
@@ -58,24 +59,28 @@ impl GetData<'_> for PrimitiveArray<Float16Type> {
     }
 }
 
+#[cfg(feature = "unsigned-integers")]
 impl GetData<'_> for PrimitiveArray<UInt8Type> {
     fn get_uint8(&self, row_index: usize, _field_name: &str) -> DeltaResult<Option<u8>> {
         Ok(self.is_valid(row_index).then(|| self.value(row_index)))
     }
 }
 
+#[cfg(feature = "unsigned-integers")]
 impl GetData<'_> for PrimitiveArray<UInt16Type> {
     fn get_uint16(&self, row_index: usize, _field_name: &str) -> DeltaResult<Option<u16>> {
         Ok(self.is_valid(row_index).then(|| self.value(row_index)))
     }
 }
 
+#[cfg(feature = "unsigned-integers")]
 impl GetData<'_> for PrimitiveArray<UInt32Type> {
     fn get_uint32(&self, row_index: usize, _field_name: &str) -> DeltaResult<Option<u32>> {
         Ok(self.is_valid(row_index).then(|| self.value(row_index)))
     }
 }
 
+#[cfg(feature = "unsigned-integers")]
 impl GetData<'_> for PrimitiveArray<UInt64Type> {
     fn get_uint64(&self, row_index: usize, _field_name: &str) -> DeltaResult<Option<u64>> {
         Ok(self.is_valid(row_index).then(|| self.value(row_index)))
@@ -301,6 +306,7 @@ impl<'a> GetData<'a> for RunArray<Int64Type> {
         Ok((!values.is_null(physical_idx)).then(|| values.value(physical_idx)))
     }
 
+    #[cfg(feature = "unsigned-integers")]
     fn get_uint8(&'a self, row_index: usize, field_name: &str) -> DeltaResult<Option<u8>> {
         let physical_idx = validate_and_get_physical_index(self, row_index, field_name)?;
         let values = self
@@ -316,6 +322,7 @@ impl<'a> GetData<'a> for RunArray<Int64Type> {
         Ok((!values.is_null(physical_idx)).then(|| values.value(physical_idx)))
     }
 
+    #[cfg(feature = "unsigned-integers")]
     fn get_uint16(&'a self, row_index: usize, field_name: &str) -> DeltaResult<Option<u16>> {
         let physical_idx = validate_and_get_physical_index(self, row_index, field_name)?;
         let values = self
@@ -331,6 +338,7 @@ impl<'a> GetData<'a> for RunArray<Int64Type> {
         Ok((!values.is_null(physical_idx)).then(|| values.value(physical_idx)))
     }
 
+    #[cfg(feature = "unsigned-integers")]
     fn get_uint32(&'a self, row_index: usize, field_name: &str) -> DeltaResult<Option<u32>> {
         let physical_idx = validate_and_get_physical_index(self, row_index, field_name)?;
         let values = self
@@ -346,6 +354,7 @@ impl<'a> GetData<'a> for RunArray<Int64Type> {
         Ok((!values.is_null(physical_idx)).then(|| values.value(physical_idx)))
     }
 
+    #[cfg(feature = "unsigned-integers")]
     fn get_uint64(&'a self, row_index: usize, field_name: &str) -> DeltaResult<Option<u64>> {
         let physical_idx = validate_and_get_physical_index(self, row_index, field_name)?;
         let values = self

@@ -216,10 +216,15 @@ fn extract_min_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar
         // Unsigned ints are stored as physical Int32/Int64 with an unsigned logical type, and
         // parquet computes their min/max with unsigned sort order. parquet-rs reports the stat as
         // the physical signed value, so we reinterpret the bits back to unsigned.
+        #[cfg(feature = "unsigned-integers")]
         (Uint8, Statistics::Int32(s)) => (*s.min_opt()? as i8 as u8).into(),
+        #[cfg(feature = "unsigned-integers")]
         (Uint16, Statistics::Int32(s)) => (*s.min_opt()? as i16 as u16).into(),
+        #[cfg(feature = "unsigned-integers")]
         (Uint32, Statistics::Int32(s)) => (*s.min_opt()? as u32).into(),
+        #[cfg(feature = "unsigned-integers")]
         (Uint64, Statistics::Int64(s)) => (*s.min_opt()? as u64).into(),
+        #[cfg(feature = "unsigned-integers")]
         (Uint8 | Uint16 | Uint32 | Uint64, _) => return None,
     };
     Some(value)
@@ -280,10 +285,15 @@ fn extract_max_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar
         // Unsigned ints are stored as physical Int32/Int64 with an unsigned logical type, and
         // parquet computes their min/max with unsigned sort order. parquet-rs reports the stat as
         // the physical signed value, so we reinterpret the bits back to unsigned.
+        #[cfg(feature = "unsigned-integers")]
         (Uint8, Statistics::Int32(s)) => (*s.max_opt()? as i8 as u8).into(),
+        #[cfg(feature = "unsigned-integers")]
         (Uint16, Statistics::Int32(s)) => (*s.max_opt()? as i16 as u16).into(),
+        #[cfg(feature = "unsigned-integers")]
         (Uint32, Statistics::Int32(s)) => (*s.max_opt()? as u32).into(),
+        #[cfg(feature = "unsigned-integers")]
         (Uint64, Statistics::Int64(s)) => (*s.max_opt()? as u64).into(),
+        #[cfg(feature = "unsigned-integers")]
         (Uint8 | Uint16 | Uint32 | Uint64, _) => return None,
     };
     Some(value)

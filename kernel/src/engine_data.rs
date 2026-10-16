@@ -235,10 +235,6 @@ pub trait GetData<'a> {
         (get_short, i16),
         (get_int, i32),
         (get_long, i64),
-        (get_uint8, u8),
-        (get_uint16, u16),
-        (get_uint32, u32),
-        (get_uint64, u64),
         (get_float, f32),
         (get_double, f64),
         (get_date, i32),
@@ -251,6 +247,13 @@ pub trait GetData<'a> {
     );
     #[cfg(feature = "float16")]
     impl_default_get!((get_float16, f16));
+    #[cfg(feature = "unsigned-integers")]
+    impl_default_get!(
+        (get_uint8, u8),
+        (get_uint16, u16),
+        (get_uint32, u32),
+        (get_uint64, u64)
+    );
 }
 
 macro_rules! impl_null_get {
@@ -270,10 +273,6 @@ impl<'a> GetData<'a> for () {
         (get_short, i16),
         (get_int, i32),
         (get_long, i64),
-        (get_uint8, u8),
-        (get_uint16, u16),
-        (get_uint32, u32),
-        (get_uint64, u64),
         (get_float, f32),
         (get_double, f64),
         (get_date, i32),
@@ -286,6 +285,13 @@ impl<'a> GetData<'a> for () {
     );
     #[cfg(feature = "float16")]
     impl_null_get!((get_float16, f16));
+    #[cfg(feature = "unsigned-integers")]
+    impl_null_get!(
+        (get_uint8, u8),
+        (get_uint16, u16),
+        (get_uint32, u32),
+        (get_uint64, u64)
+    );
 }
 
 /// This is a convenience wrapper over `GetData` to allow code like: `let name: Option<String> =
@@ -321,10 +327,6 @@ impl_typed_get_data!(
     (get_short, i16),
     (get_int, i32),
     (get_long, i64),
-    (get_uint8, u8),
-    (get_uint16, u16),
-    (get_uint32, u32),
-    (get_uint64, u64),
     (get_float, f32),
     (get_double, f64),
     (get_decimal, i128),
@@ -336,6 +338,14 @@ impl_typed_get_data!(
 
 #[cfg(feature = "float16")]
 impl_typed_get_data!((get_float16, f16));
+
+#[cfg(feature = "unsigned-integers")]
+impl_typed_get_data!(
+    (get_uint8, u8),
+    (get_uint16, u16),
+    (get_uint32, u32),
+    (get_uint64, u64)
+);
 
 impl<'a> TypedGetData<'a, String> for dyn GetData<'a> + '_ {
     fn get_opt(&'a self, row_index: usize, field_name: &str) -> DeltaResult<Option<String>> {

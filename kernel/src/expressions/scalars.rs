@@ -234,12 +234,16 @@ pub enum Scalar {
     #[cfg(feature = "float16")]
     /// 16bit floating point
     Float16(f16),
+    #[cfg(feature = "unsigned-integers")]
     /// 8bit unsigned integer
     Uint8(u8),
+    #[cfg(feature = "unsigned-integers")]
     /// 16bit unsigned integer
     Uint16(u16),
+    #[cfg(feature = "unsigned-integers")]
     /// 32bit unsigned integer
     Uint32(u32),
+    #[cfg(feature = "unsigned-integers")]
     /// 64bit unsigned integer
     Uint64(u64),
     /// 32bit floating point
@@ -285,9 +289,13 @@ impl Scalar {
             Self::Byte(_) => DataType::BYTE,
             #[cfg(feature = "float16")]
             Self::Float16(_) => DataType::FLOAT16,
+            #[cfg(feature = "unsigned-integers")]
             Self::Uint8(_) => DataType::UINT8,
+            #[cfg(feature = "unsigned-integers")]
             Self::Uint16(_) => DataType::UINT16,
+            #[cfg(feature = "unsigned-integers")]
             Self::Uint32(_) => DataType::UINT32,
+            #[cfg(feature = "unsigned-integers")]
             Self::Uint64(_) => DataType::UINT64,
             Self::Float(_) => DataType::FLOAT,
             Self::Double(_) => DataType::DOUBLE,
@@ -339,9 +347,13 @@ impl Scalar {
             (Long(a), Long(b)) => Long(a.checked_add(*b)?),
             (Short(a), Short(b)) => Short(a.checked_add(*b)?),
             (Byte(a), Byte(b)) => Byte(a.checked_add(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint8(a), Uint8(b)) => Uint8(a.checked_add(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint16(a), Uint16(b)) => Uint16(a.checked_add(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint32(a), Uint32(b)) => Uint32(a.checked_add(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint64(a), Uint64(b)) => Uint64(a.checked_add(*b)?),
             _ => return None,
         };
@@ -356,9 +368,13 @@ impl Scalar {
             (Long(a), Long(b)) => Long(a.checked_sub(*b)?),
             (Short(a), Short(b)) => Short(a.checked_sub(*b)?),
             (Byte(a), Byte(b)) => Byte(a.checked_sub(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint8(a), Uint8(b)) => Uint8(a.checked_sub(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint16(a), Uint16(b)) => Uint16(a.checked_sub(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint32(a), Uint32(b)) => Uint32(a.checked_sub(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint64(a), Uint64(b)) => Uint64(a.checked_sub(*b)?),
             _ => return None,
         };
@@ -373,9 +389,13 @@ impl Scalar {
             (Long(a), Long(b)) => Long(a.checked_mul(*b)?),
             (Short(a), Short(b)) => Short(a.checked_mul(*b)?),
             (Byte(a), Byte(b)) => Byte(a.checked_mul(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint8(a), Uint8(b)) => Uint8(a.checked_mul(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint16(a), Uint16(b)) => Uint16(a.checked_mul(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint32(a), Uint32(b)) => Uint32(a.checked_mul(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint64(a), Uint64(b)) => Uint64(a.checked_mul(*b)?),
             _ => return None,
         };
@@ -390,9 +410,13 @@ impl Scalar {
             (Long(a), Long(b)) => Long(a.checked_div(*b)?),
             (Short(a), Short(b)) => Short(a.checked_div(*b)?),
             (Byte(a), Byte(b)) => Byte(a.checked_div(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint8(a), Uint8(b)) => Uint8(a.checked_div(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint16(a), Uint16(b)) => Uint16(a.checked_div(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint32(a), Uint32(b)) => Uint32(a.checked_div(*b)?),
+            #[cfg(feature = "unsigned-integers")]
             (Uint64(a), Uint64(b)) => Uint64(a.checked_div(*b)?),
             _ => return None,
         };
@@ -409,9 +433,13 @@ impl Display for Scalar {
             Self::Byte(i) => write!(f, "{i}"),
             #[cfg(feature = "float16")]
             Self::Float16(fl) => write!(f, "{fl}"),
+            #[cfg(feature = "unsigned-integers")]
             Self::Uint8(u) => write!(f, "{u}"),
+            #[cfg(feature = "unsigned-integers")]
             Self::Uint16(u) => write!(f, "{u}"),
+            #[cfg(feature = "unsigned-integers")]
             Self::Uint32(u) => write!(f, "{u}"),
+            #[cfg(feature = "unsigned-integers")]
             Self::Uint64(u) => write!(f, "{u}"),
             Self::Float(fl) => write!(f, "{fl}"),
             Self::Double(fl) => write!(f, "{fl}"),
@@ -532,13 +560,21 @@ impl Scalar {
             (Float16(a), Float16(b)) => a.partial_cmp(b),
             #[cfg(feature = "float16")]
             (Float16(_), _) => None,
+            #[cfg(feature = "unsigned-integers")]
             (Uint8(a), Uint8(b)) => a.partial_cmp(b),
+            #[cfg(feature = "unsigned-integers")]
             (Uint8(_), _) => None,
+            #[cfg(feature = "unsigned-integers")]
             (Uint16(a), Uint16(b)) => a.partial_cmp(b),
+            #[cfg(feature = "unsigned-integers")]
             (Uint16(_), _) => None,
+            #[cfg(feature = "unsigned-integers")]
             (Uint32(a), Uint32(b)) => a.partial_cmp(b),
+            #[cfg(feature = "unsigned-integers")]
             (Uint32(_), _) => None,
+            #[cfg(feature = "unsigned-integers")]
             (Uint64(a), Uint64(b)) => a.partial_cmp(b),
+            #[cfg(feature = "unsigned-integers")]
             (Uint64(_), _) => None,
             (Float(a), Float(b)) => a.partial_cmp(b),
             (Float(_), _) => None,
@@ -608,24 +644,28 @@ impl From<f16> for Scalar {
     }
 }
 
+#[cfg(feature = "unsigned-integers")]
 impl From<u8> for Scalar {
     fn from(i: u8) -> Self {
         Self::Uint8(i)
     }
 }
 
+#[cfg(feature = "unsigned-integers")]
 impl From<u16> for Scalar {
     fn from(i: u16) -> Self {
         Self::Uint16(i)
     }
 }
 
+#[cfg(feature = "unsigned-integers")]
 impl From<u32> for Scalar {
     fn from(i: u32) -> Self {
         Self::Uint32(i)
     }
 }
 
+#[cfg(feature = "unsigned-integers")]
 impl From<u64> for Scalar {
     fn from(i: u64) -> Self {
         Self::Uint64(i)
@@ -819,9 +859,13 @@ impl PrimitiveType {
             Float16 => self.parse_str_as_scalar(raw, Scalar::Float16),
             Float => self.parse_str_as_scalar(raw, Scalar::Float),
             Double => self.parse_str_as_scalar(raw, Scalar::Double),
+            #[cfg(feature = "unsigned-integers")]
             Uint8 => self.parse_str_as_scalar(raw, Scalar::Uint8),
+            #[cfg(feature = "unsigned-integers")]
             Uint16 => self.parse_str_as_scalar(raw, Scalar::Uint16),
+            #[cfg(feature = "unsigned-integers")]
             Uint32 => self.parse_str_as_scalar(raw, Scalar::Uint32),
+            #[cfg(feature = "unsigned-integers")]
             Uint64 => self.parse_str_as_scalar(raw, Scalar::Uint64),
             Boolean => {
                 if raw.eq_ignore_ascii_case("true") {
@@ -1220,6 +1264,7 @@ mod tests {
         assert_timestamp_eq("1970-01-01 00:00:00", 0);
     }
 
+    #[cfg(feature = "unsigned-integers")]
     #[test]
     fn unsigned_scalar_basics_and_unsigned_ordering() {
         use crate::expressions::Scalar;

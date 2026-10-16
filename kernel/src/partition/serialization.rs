@@ -91,9 +91,13 @@ pub fn serialize_partition_value(value: &Scalar) -> DeltaResult<Option<String>> 
         Scalar::Long(v) => Ok(Some(v.to_string())),
         #[cfg(feature = "float16")]
         Scalar::Float16(v) => Ok(Some(format_f16(*v))),
+        #[cfg(feature = "unsigned-integers")]
         Scalar::Uint8(v) => Ok(Some(v.to_string())),
+        #[cfg(feature = "unsigned-integers")]
         Scalar::Uint16(v) => Ok(Some(v.to_string())),
+        #[cfg(feature = "unsigned-integers")]
         Scalar::Uint32(v) => Ok(Some(v.to_string())),
+        #[cfg(feature = "unsigned-integers")]
         Scalar::Uint64(v) => Ok(Some(v.to_string())),
         Scalar::Float(v) => Ok(Some(format_f32(*v))),
         Scalar::Double(v) => Ok(Some(format_f64(*v))),
@@ -379,6 +383,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "unsigned-integers")]
     /// Unsigned integer partition values round-trip: serialize -> parse_scalar -> compare.
     /// Covers the full width per type, including u64::MAX which overflows i64.
     #[rstest]

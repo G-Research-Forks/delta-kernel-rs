@@ -548,6 +548,7 @@ impl NullTypeTag {
                 PrimitiveType::TimestampNanosNtz => (Self::TimestampNanosNtz, 0, 0),
                 PrimitiveType::Timestamp => (Self::Timestamp, 0, 0),
                 PrimitiveType::TimestampNtz => (Self::TimestampNtz, 0, 0),
+                #[cfg(feature = "unsigned-integers")]
                 PrimitiveType::Uint8
                 | PrimitiveType::Uint16
                 | PrimitiveType::Uint32

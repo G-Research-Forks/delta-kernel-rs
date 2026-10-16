@@ -364,6 +364,7 @@ fn visit_schema_impl(schema: &StructType, visitor: &mut EngineSchemaVisitor) -> 
             &DataType::TIMESTAMP_NANOS => call!(visit_timestamp_nanos),
             #[cfg(feature = "nanosecond-timestamps")]
             &DataType::TIMESTAMP_NANOS_NTZ => call!(visit_timestamp_nanos_ntz),
+            #[cfg(feature = "unsigned-integers")]
             &DataType::UINT8 | &DataType::UINT16 | &DataType::UINT32 | &DataType::UINT64 => {
                 // No visit_uint* callbacks yet (adding them is a C ABI change); skip rather than
                 // mapping to a signed callback, which would misrepresent the column type.

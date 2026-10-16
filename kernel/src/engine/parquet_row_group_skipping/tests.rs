@@ -9,9 +9,9 @@ use half::f16;
 use super::*;
 #[cfg(feature = "float16")]
 use crate::arrow::array::Float16Array;
-use crate::arrow::array::{
-    Int64Array, RecordBatch, StringArray, StructArray, UInt32Array, UInt64Array,
-};
+use crate::arrow::array::{Int64Array, RecordBatch, StringArray, StructArray};
+#[cfg(feature = "unsigned-integers")]
+use crate::arrow::array::{UInt32Array, UInt64Array};
 use crate::arrow::datatypes::{DataType as ArrowDataType, Field, Fields, Schema as ArrowSchema};
 use crate::expressions::{
     column_expr, column_name, column_pred, Expression, OpaquePredicateOp, ScalarExpressionEvaluator,
@@ -1210,6 +1210,7 @@ fn test_float16_from_bytes() {
     assert_eq!(float16_from_bytes(Some(&[0x00, 0x3E, 0x00])), None);
 }
 
+#[cfg(feature = "unsigned-integers")]
 /// Writes a single-column parquet file from `array` and returns the column-chunk statistics of its
 /// only row group, so we can verify unsigned min/max extraction end-to-end against the bytes
 /// parquet-rs actually wrote and the ordering it used to pick min/max.
@@ -1236,6 +1237,7 @@ fn unsigned_column_statistics(
         .clone()
 }
 
+#[cfg(feature = "unsigned-integers")]
 /// GATE TEST: verifies that parquet-rs computes unsigned column min/max with UNSIGNED ordering.
 ///
 /// The uint64 values are chosen so signed vs. unsigned ordering disagree on both ends: under
