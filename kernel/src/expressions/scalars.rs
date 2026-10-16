@@ -1287,6 +1287,54 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "unsigned-integers")]
+    fn assert_unsigned_option_and_collection_conversions<T>(value: T, data_type: DataType)
+    where
+        T: Into<Scalar> + ToDataType + Copy + Eq + std::hash::Hash,
+    {
+        let expected: Scalar = value.into();
+        assert_eq!(expected.data_type(), data_type);
+
+        assert_eq!(Scalar::from(Some(value)), expected);
+        assert_eq!(Scalar::from(None::<T>), Scalar::Null(data_type.clone()));
+
+        let array = Scalar::try_from(vec![value, value]).unwrap();
+        assert_eq!(
+            array.data_type(),
+            ArrayType::new(data_type.clone(), false).into()
+        );
+        let nullable_array = Scalar::try_from(vec![Some(value), None]).unwrap();
+        assert_eq!(
+            nullable_array.data_type(),
+            ArrayType::new(data_type.clone(), true).into()
+        );
+        let Scalar::Array(array_data) = nullable_array else {
+            panic!("Expected Array scalar");
+        };
+        assert_eq!(array_data.array_elements()[0], expected);
+        assert!(array_data.array_elements()[1].is_null());
+
+        let map = Scalar::try_from(HashMap::from([(value, value)])).unwrap();
+        assert_eq!(
+            map.data_type(),
+            MapType::new(data_type.clone(), data_type.clone(), false).into()
+        );
+        let nullable_map = Scalar::try_from(HashMap::from([(value, None::<T>)])).unwrap();
+        assert_eq!(
+            nullable_map.data_type(),
+            MapType::new(data_type.clone(), data_type, true).into()
+        );
+    }
+
+    #[cfg(feature = "unsigned-integers")]
+    #[test]
+    fn test_unsigned_option_and_collection_conversions() {
+        assert_unsigned_option_and_collection_conversions(u8::MAX, DataType::UINT8);
+        assert_unsigned_option_and_collection_conversions(u16::MAX, DataType::UINT16);
+        assert_unsigned_option_and_collection_conversions(u32::MAX, DataType::UINT32);
+        assert_unsigned_option_and_collection_conversions(u64::MAX, DataType::UINT64);
+    }
+
     #[cfg(feature = "nanosecond-timestamps")]
     #[test]
     fn test_timestamp_nanos_parse() {
