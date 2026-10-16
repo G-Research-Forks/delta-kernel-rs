@@ -2327,23 +2327,22 @@ mod tests {
     };
 
     #[cfg(feature = "unsigned-integers")]
-    #[test]
-    fn unsigned_primitive_types_roundtrip_serde_and_display() {
-        use crate::schema::PrimitiveType;
-        for (variant, s) in [
-            (PrimitiveType::Uint8, "uint8"),
-            (PrimitiveType::Uint16, "uint16"),
-            (PrimitiveType::Uint32, "uint32"),
-            (PrimitiveType::Uint64, "uint64"),
-        ] {
-            assert_eq!(variant.to_string(), s);
-            assert_eq!(
-                serde_json::to_value(&variant).unwrap(),
-                serde_json::json!(s)
-            );
-            let de: PrimitiveType = serde_json::from_value(serde_json::json!(s)).unwrap();
-            assert_eq!(de, variant);
-        }
+    #[rstest]
+    #[case::uint8(PrimitiveType::Uint8, "uint8")]
+    #[case::uint16(PrimitiveType::Uint16, "uint16")]
+    #[case::uint32(PrimitiveType::Uint32, "uint32")]
+    #[case::uint64(PrimitiveType::Uint64, "uint64")]
+    fn unsigned_primitive_types_roundtrip_serde_and_display(
+        #[case] variant: PrimitiveType,
+        #[case] name: &str,
+    ) {
+        assert_eq!(variant.to_string(), name);
+        assert_eq!(
+            serde_json::to_value(&variant).unwrap(),
+            serde_json::json!(name)
+        );
+        let de: PrimitiveType = serde_json::from_value(serde_json::json!(name)).unwrap();
+        assert_eq!(de, variant);
     }
 
     fn example_schema_metadata() -> &'static str {

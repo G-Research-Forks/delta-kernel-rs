@@ -1267,8 +1267,6 @@ mod tests {
     #[cfg(feature = "unsigned-integers")]
     #[test]
     fn unsigned_scalar_basics_and_unsigned_ordering() {
-        use crate::expressions::Scalar;
-        use crate::schema::DataType;
         assert_eq!(
             Scalar::Uint64(18446744073709551615).data_type(),
             DataType::UINT64

@@ -1106,19 +1106,19 @@ mod tests {
     }
 
     #[cfg(feature = "unsigned-integers")]
-    #[test]
-    fn unsigned_kernel_arrow_roundtrip() {
-        for (k, a) in [
-            (PrimitiveType::Uint8, ArrowDataType::UInt8),
-            (PrimitiveType::Uint16, ArrowDataType::UInt16),
-            (PrimitiveType::Uint32, ArrowDataType::UInt32),
-            (PrimitiveType::Uint64, ArrowDataType::UInt64),
-        ] {
-            let kdt = DataType::Primitive(k.clone());
-            let arrow = ArrowDataType::try_from_kernel(&kdt).unwrap();
-            assert_eq!(arrow, a, "kernel->arrow for {k:?}");
-            let back = DataType::try_from_arrow(&a).unwrap();
-            assert_eq!(back, kdt, "arrow->kernel for {a:?}");
-        }
+    #[rstest]
+    #[case::uint8(DataType::UINT8, ArrowDataType::UInt8)]
+    #[case::uint16(DataType::UINT16, ArrowDataType::UInt16)]
+    #[case::uint32(DataType::UINT32, ArrowDataType::UInt32)]
+    #[case::uint64(DataType::UINT64, ArrowDataType::UInt64)]
+    fn unsigned_kernel_arrow_roundtrip(
+        #[case] kernel_type: DataType,
+        #[case] arrow_type: ArrowDataType,
+    ) {
+        assert_eq!(
+            ArrowDataType::try_from_kernel(&kernel_type).unwrap(),
+            arrow_type
+        );
+        assert_eq!(DataType::try_from_arrow(&arrow_type).unwrap(), kernel_type);
     }
 }

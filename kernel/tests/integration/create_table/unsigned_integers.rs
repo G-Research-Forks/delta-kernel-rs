@@ -25,7 +25,8 @@ fn create_and_load(schema: SchemaRef, cm_mode: &str) -> DeltaResult<Arc<Snapshot
     let _ = create_table(&table_path, schema, "Test/1.0")
         .with_table_properties(cm_properties(cm_mode))
         .build(engine.as_ref(), Box::new(FileSystemCommitter::new()))?
-        .commit(engine.as_ref())?;
+        .commit(engine.as_ref())?
+        .unwrap_committed();
     let table_url = delta_kernel::try_parse_uri(&table_path)?;
     Snapshot::builder_for(table_url).build(engine.as_ref())
 }
