@@ -577,6 +577,14 @@ impl From<&Scalar> for proto_expr::Scalar {
             Scalar::Byte(v) => Value::Byte(*v as i32),
             #[cfg(feature = "float16")]
             Scalar::Float16(v) => Value::Float16(u32::from(v.to_bits())),
+            #[cfg(feature = "unsigned-integers")]
+            Scalar::Uint8(v) => Value::Uint8(u32::from(*v)),
+            #[cfg(feature = "unsigned-integers")]
+            Scalar::Uint16(v) => Value::Uint16(u32::from(*v)),
+            #[cfg(feature = "unsigned-integers")]
+            Scalar::Uint32(v) => Value::Uint32(*v),
+            #[cfg(feature = "unsigned-integers")]
+            Scalar::Uint64(v) => Value::Uint64(*v),
             Scalar::Float(v) => Value::Float(*v),
             Scalar::Double(v) => Value::Double(*v),
             Scalar::String(v) => Value::String(v.clone()),
@@ -689,6 +697,14 @@ impl From<&PrimitiveType> for proto_schema::PrimitiveType {
             PrimitiveType::Byte => PrimitiveTypeKind::Simple(Simple::Byte as i32),
             #[cfg(feature = "float16")]
             PrimitiveType::Float16 => PrimitiveTypeKind::Simple(Simple::Float16 as i32),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint8 => PrimitiveTypeKind::Simple(Simple::Uint8 as i32),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint16 => PrimitiveTypeKind::Simple(Simple::Uint16 as i32),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint32 => PrimitiveTypeKind::Simple(Simple::Uint32 as i32),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint64 => PrimitiveTypeKind::Simple(Simple::Uint64 as i32),
             PrimitiveType::Float => PrimitiveTypeKind::Simple(Simple::Float as i32),
             PrimitiveType::Double => PrimitiveTypeKind::Simple(Simple::Double as i32),
             PrimitiveType::Boolean => PrimitiveTypeKind::Simple(Simple::Boolean as i32),
@@ -935,6 +951,20 @@ impl TryFrom<proto_schema::PrimitiveType> for PrimitiveType {
                     Simple::Float16 => {
                         return Err(KernelError::schema(
                             "float16 type requires the 'float16' feature",
+                        ))
+                    }
+                    #[cfg(feature = "unsigned-integers")]
+                    Simple::Uint8 => PrimitiveType::Uint8,
+                    #[cfg(feature = "unsigned-integers")]
+                    Simple::Uint16 => PrimitiveType::Uint16,
+                    #[cfg(feature = "unsigned-integers")]
+                    Simple::Uint32 => PrimitiveType::Uint32,
+                    #[cfg(feature = "unsigned-integers")]
+                    Simple::Uint64 => PrimitiveType::Uint64,
+                    #[cfg(not(feature = "unsigned-integers"))]
+                    Simple::Uint8 | Simple::Uint16 | Simple::Uint32 | Simple::Uint64 => {
+                        return Err(KernelError::schema(
+                            "unsigned integer types require the 'unsigned-integers' feature",
                         ))
                     }
                     Simple::Void => PrimitiveType::Void,
@@ -2097,6 +2127,10 @@ mod tests {
             Value::Short(_) => "short",
             Value::Byte(_) => "byte",
             Value::Float16(_) => "float16",
+            Value::Uint8(_) => "uint8",
+            Value::Uint16(_) => "uint16",
+            Value::Uint32(_) => "uint32",
+            Value::Uint64(_) => "uint64",
             Value::Float(_) => "float",
             Value::Double(_) => "double",
             Value::String(_) => "string",

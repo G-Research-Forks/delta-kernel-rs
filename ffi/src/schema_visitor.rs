@@ -295,6 +295,138 @@ pub unsafe extern "C" fn visit_field_byte(
         .into_extern_result(&allocate_error)
 }
 
+/// EXPERIMENTAL. Visit a uint8 field. Uint8 fields store 8-bit unsigned integers.
+///
+/// Returns an error if kernel was not built with the `unsigned-integers` feature.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer. When non-null, `metadata` must point to a valid
+/// descriptor and callback.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_uint8(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    metadata: *const EngineMetadata,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_unsigned_impl(state, name_str, UnsignedWidth::U8, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+/// EXPERIMENTAL. Visit a uint16 field. Uint16 fields store 16-bit unsigned integers.
+///
+/// Returns an error if kernel was not built with the `unsigned-integers` feature.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer. When non-null, `metadata` must point to a valid
+/// descriptor and callback.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_uint16(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    metadata: *const EngineMetadata,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_unsigned_impl(state, name_str, UnsignedWidth::U16, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+/// EXPERIMENTAL. Visit a uint32 field. Uint32 fields store 32-bit unsigned integers.
+///
+/// Returns an error if kernel was not built with the `unsigned-integers` feature.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer. When non-null, `metadata` must point to a valid
+/// descriptor and callback.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_uint32(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    metadata: *const EngineMetadata,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_unsigned_impl(state, name_str, UnsignedWidth::U32, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+/// EXPERIMENTAL. Visit a uint64 field. Uint64 fields store 64-bit unsigned integers.
+///
+/// Returns an error if kernel was not built with the `unsigned-integers` feature.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer. When non-null, `metadata` must point to a valid
+/// descriptor and callback.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_uint64(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    metadata: *const EngineMetadata,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_unsigned_impl(state, name_str, UnsignedWidth::U64, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+/// Bit width selector for the unsigned integer field visitors, which exist regardless of the
+/// `unsigned-integers` feature so the C ABI does not depend on it.
+#[derive(Clone, Copy)]
+enum UnsignedWidth {
+    U8,
+    U16,
+    U32,
+    U64,
+}
+
+#[cfg(feature = "unsigned-integers")]
+fn visit_field_unsigned_impl(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelResult<&str>,
+    width: UnsignedWidth,
+    nullable: bool,
+    metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
+    let ptype = match width {
+        UnsignedWidth::U8 => PrimitiveType::Uint8,
+        UnsignedWidth::U16 => PrimitiveType::Uint16,
+        UnsignedWidth::U32 => PrimitiveType::Uint32,
+        UnsignedWidth::U64 => PrimitiveType::Uint64,
+    };
+    visit_field_primitive_impl(state, name, ptype, nullable, metadata)
+}
+
+#[cfg(not(feature = "unsigned-integers"))]
+fn visit_field_unsigned_impl(
+    _state: &mut KernelSchemaVisitorState,
+    _name: KernelResult<&str>,
+    _width: UnsignedWidth,
+    _nullable: bool,
+    _metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
+    Err(KernelError::unsupported(
+        "`unsigned-integers` feature not enabled in delta-kernel",
+    ))
+}
+
 /// Visit a float16 field. Float16 fields store 16-bit floating point numbers.
 ///
 /// Returns an error if kernel was not built with the `float16` feature.
@@ -2227,6 +2359,10 @@ mod tests {
         //   col_double: double,
         //   col_float: float,
         //   col_float16: f16,
+        //   col_uint8: uint8,
+        //   col_uint16: uint16,
+        //   col_uint32: uint32,
+        //   col_uint64: uint64,
         //   col_boolean: boolean,
         //   col_binary: binary,
         //   col_date: date,
@@ -2290,6 +2426,14 @@ mod tests {
         );
         #[cfg(feature = "float16")]
         let col_float16 = visit_field!(float16, state, "col_float16", false, null());
+        #[cfg(feature = "unsigned-integers")]
+        let col_uint8 = visit_field!(uint8, state, "col_uint8", false, null());
+        #[cfg(feature = "unsigned-integers")]
+        let col_uint16 = visit_field!(uint16, state, "col_uint16", false, null());
+        #[cfg(feature = "unsigned-integers")]
+        let col_uint32 = visit_field!(uint32, state, "col_uint32", false, null());
+        #[cfg(feature = "unsigned-integers")]
+        let col_uint64 = visit_field!(uint64, state, "col_uint64", false, null());
         let col_decimal = visit_field!(decimal, state, "col_decimal", 10, 2, false, null());
 
         // Create array<string>
@@ -2374,6 +2518,14 @@ mod tests {
             col_timestamp_nanos_ntz,
             #[cfg(feature = "float16")]
             col_float16,
+            #[cfg(feature = "unsigned-integers")]
+            col_uint8,
+            #[cfg(feature = "unsigned-integers")]
+            col_uint16,
+            #[cfg(feature = "unsigned-integers")]
+            col_uint32,
+            #[cfg(feature = "unsigned-integers")]
+            col_uint64,
         ];
         let schema_id = ok_or_panic(unsafe {
             visit_field_struct(
@@ -2393,7 +2545,8 @@ mod tests {
         let expected_len = 20
             + cfg!(feature = "geo-type-in-dev") as usize * 2
             + cfg!(feature = "nanosecond-timestamps") as usize * 2
-            + cfg!(feature = "float16") as usize;
+            + cfg!(feature = "float16") as usize
+            + cfg!(feature = "unsigned-integers") as usize * 4;
         assert_eq!(fields.len(), expected_len);
 
         // Validate the primitive fields
@@ -2499,13 +2652,32 @@ mod tests {
 
         #[cfg(feature = "float16")]
         {
-            let float16_index = expected_len - 1;
+            let float16_index = 20
+                + cfg!(feature = "geo-type-in-dev") as usize * 2
+                + cfg!(feature = "nanosecond-timestamps") as usize * 2;
             assert_eq!(fields[float16_index].name(), "col_float16");
             assert_eq!(
                 fields[float16_index].data_type(),
                 &DataType::Primitive(PrimitiveType::Float16)
             );
             assert!(!fields[float16_index].is_nullable());
+        }
+
+        #[cfg(feature = "unsigned-integers")]
+        {
+            let uint_base = expected_len - 4;
+            let expected = [
+                ("col_uint8", PrimitiveType::Uint8),
+                ("col_uint16", PrimitiveType::Uint16),
+                ("col_uint32", PrimitiveType::Uint32),
+                ("col_uint64", PrimitiveType::Uint64),
+            ];
+            for (offset, (name, ptype)) in expected.into_iter().enumerate() {
+                let field = fields[uint_base + offset];
+                assert_eq!(field.name(), name);
+                assert_eq!(field.data_type(), &DataType::Primitive(ptype));
+                assert!(!field.is_nullable());
+            }
         }
     }
 

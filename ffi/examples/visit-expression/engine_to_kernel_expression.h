@@ -29,6 +29,57 @@ uintptr_t convert_engine_to_kernel_literal(
       return visit_expression_literal_short(state, lit->value.short_data);
     case Byte:
       return visit_expression_literal_byte(state, lit->value.byte_data);
+#ifdef DEFINE_UNSIGNED_INTEGERS
+    case Uint8: {
+      ExternResultusize result =
+          visit_expression_literal_uint8(state, lit->value.uint8_data, allocate_error);
+      if (result.tag == Errusize) {
+        print_error("visit_expression_literal_uint8 failed", (Error*)result.err);
+        free_error((Error*)result.err);
+        abort();
+      }
+      return result.ok;
+    }
+    case Uint16: {
+      ExternResultusize result =
+          visit_expression_literal_uint16(state, lit->value.uint16_data, allocate_error);
+      if (result.tag == Errusize) {
+        print_error("visit_expression_literal_uint16 failed", (Error*)result.err);
+        free_error((Error*)result.err);
+        abort();
+      }
+      return result.ok;
+    }
+    case Uint32: {
+      ExternResultusize result =
+          visit_expression_literal_uint32(state, lit->value.uint32_data, allocate_error);
+      if (result.tag == Errusize) {
+        print_error("visit_expression_literal_uint32 failed", (Error*)result.err);
+        free_error((Error*)result.err);
+        abort();
+      }
+      return result.ok;
+    }
+    case Uint64: {
+      ExternResultusize result =
+          visit_expression_literal_uint64(state, lit->value.uint64_data, allocate_error);
+      if (result.tag == Errusize) {
+        print_error("visit_expression_literal_uint64 failed", (Error*)result.err);
+        free_error((Error*)result.err);
+        abort();
+      }
+      return result.ok;
+    }
+#else
+    case Uint8:
+    case Uint16:
+    case Uint32:
+    case Uint64:
+      // Kernel only emits unsigned literals when built with the `unsigned-integers` feature, in
+      // which case this example must be compiled with DEFINE_UNSIGNED_INTEGERS.
+      fprintf(stderr, "Unsigned integer literals require DEFINE_UNSIGNED_INTEGERS\n");
+      abort();
+#endif
     case Float:
       return visit_expression_literal_float(state, lit->value.float_data);
     case Double:

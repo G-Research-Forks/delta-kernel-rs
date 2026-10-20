@@ -108,13 +108,17 @@ pub(crate) fn validate_clustering_columns(
                 let nanos = ", TimestampNanos, TimestampNanosNtz";
                 #[cfg(not(feature = "nanosecond-timestamps"))]
                 let nanos = "";
+                #[cfg(feature = "unsigned-integers")]
+                let uints = "Uint8, Uint16, Uint32, Uint64, ";
+                #[cfg(not(feature = "unsigned-integers"))]
+                let uints = "";
                 #[cfg(feature = "float16")]
                 let float16 = "Float16, ";
                 #[cfg(not(feature = "float16"))]
                 let float16 = "";
                 return Err(KernelError::generic(format!(
                     "Clustering column '{col}' has unsupported type '{dt}'. \
-                     Supported types: Byte, Short, Integer, Long, {float16}Float, Double, \
+                     Supported types: Byte, Short, Integer, Long, {uints}{float16}Float, Double, \
                      Decimal, Date, Timestamp, TimestampNtz{nanos}, String"
                 )));
             }
