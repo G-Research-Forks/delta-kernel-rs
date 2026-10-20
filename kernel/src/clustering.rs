@@ -89,8 +89,9 @@ pub(crate) fn validate_clustering_columns(
             dt => {
                 return Err(Error::generic(format!(
                     "Clustering column '{col}' has unsupported type '{dt}'. \
-                     Supported types: Byte, Short, Integer, Long, Float, Double, \
-                     Float16, Decimal, Date, Timestamp, TimestampNtz, TimestampNanos, TimestampNanosNtz, String"
+                     Supported types: Byte, Short, Integer, Long, Uint8, Uint16, Uint32, Uint64, \
+                     Float, Double, Float16, Decimal, Date, Timestamp, TimestampNtz, TimestampNanos, \
+                     TimestampNanosNtz, String"
                 )));
             }
         }
@@ -293,6 +294,14 @@ mod tests {
             StructField::new("short_col", DataType::SHORT, false),
             StructField::new("int_col", DataType::INTEGER, false),
             StructField::new("long_col", DataType::LONG, false),
+            #[cfg(feature = "unsigned-integers")]
+            StructField::new("uint8_col", DataType::UINT8, false),
+            #[cfg(feature = "unsigned-integers")]
+            StructField::new("uint16_col", DataType::UINT16, false),
+            #[cfg(feature = "unsigned-integers")]
+            StructField::new("uint32_col", DataType::UINT32, false),
+            #[cfg(feature = "unsigned-integers")]
+            StructField::new("uint64_col", DataType::UINT64, false),
             #[cfg(feature = "float16")]
             StructField::new("float16_col", DataType::FLOAT16, false),
             StructField::new("float_col", DataType::FLOAT, false),

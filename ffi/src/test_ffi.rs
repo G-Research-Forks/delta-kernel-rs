@@ -137,6 +137,14 @@ pub unsafe extern "C" fn get_testing_kernel_expression() -> Handle<SharedExpress
         Expr::literal(f16::MAX),
         #[cfg(feature = "float16")]
         Expr::literal(f16::MIN),
+        #[cfg(feature = "unsigned-integers")]
+        Expr::literal(u8::MAX),
+        #[cfg(feature = "unsigned-integers")]
+        Expr::literal(u16::MAX),
+        #[cfg(feature = "unsigned-integers")]
+        Expr::literal(u32::MAX),
+        #[cfg(feature = "unsigned-integers")]
+        Expr::literal(u64::MAX),
         Expr::literal(f32::MAX),
         Expr::literal(f32::MIN),
         Expr::literal(f64::MAX),
@@ -252,6 +260,8 @@ pub unsafe extern "C" fn get_simple_testing_kernel_expression() -> Handle<Shared
         Expr::literal(2.5f64), // Using 2.5 to avoid clippy::approx_constant warning
         #[cfg(feature = "float16")]
         Expr::literal(f16::from_f32(2.5)),
+        #[cfg(feature = "unsigned-integers")]
+        Expr::literal(u64::MAX),
         Expr::literal(true),
         Expr::literal(false),
         Expr::literal("test string"),

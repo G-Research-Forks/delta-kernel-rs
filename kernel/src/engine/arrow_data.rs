@@ -13,6 +13,8 @@ use crate::arrow::array::types::{
     Date32Type, Decimal128Type, Float32Type, Float64Type, GenericStringType, Int16Type, Int32Type,
     Int64Type, Int8Type, TimestampMicrosecondType,
 };
+#[cfg(feature = "unsigned-integers")]
+use crate::arrow::array::types::{UInt16Type, UInt32Type, UInt64Type, UInt8Type};
 use crate::arrow::array::{
     Array, ArrayRef, GenericByteArray, OffsetSizeTrait, RecordBatch, RunArray, StringViewArray,
     StructArray,
@@ -476,6 +478,38 @@ impl ArrowEngineData {
                     .map(|a| a as _)
                     .ok_or("float16")
             }
+            #[cfg(feature = "unsigned-integers")]
+            &DataType::UINT8 => {
+                debug!("Pushing uint8 array for {}", ColumnName::new(path));
+                col.as_primitive_opt::<UInt8Type>()
+                    .map(|a| a as _)
+                    .or_else(|| Self::try_extract_with_ree(col))
+                    .ok_or("uint8")
+            }
+            #[cfg(feature = "unsigned-integers")]
+            &DataType::UINT16 => {
+                debug!("Pushing uint16 array for {}", ColumnName::new(path));
+                col.as_primitive_opt::<UInt16Type>()
+                    .map(|a| a as _)
+                    .or_else(|| Self::try_extract_with_ree(col))
+                    .ok_or("uint16")
+            }
+            #[cfg(feature = "unsigned-integers")]
+            &DataType::UINT32 => {
+                debug!("Pushing uint32 array for {}", ColumnName::new(path));
+                col.as_primitive_opt::<UInt32Type>()
+                    .map(|a| a as _)
+                    .or_else(|| Self::try_extract_with_ree(col))
+                    .ok_or("uint32")
+            }
+            #[cfg(feature = "unsigned-integers")]
+            &DataType::UINT64 => {
+                debug!("Pushing uint64 array for {}", ColumnName::new(path));
+                col.as_primitive_opt::<UInt64Type>()
+                    .map(|a| a as _)
+                    .or_else(|| Self::try_extract_with_ree(col))
+                    .ok_or("uint64")
+            }
             &DataType::FLOAT => {
                 debug!("Pushing float array for {}", ColumnName::new(path));
                 col.as_primitive_opt::<Float32Type>()
@@ -553,6 +587,8 @@ mod tests {
         LargeBinaryArray, LargeStringArray, ListViewArray, MapArray, RecordBatch, RunArray,
         StringArray, StringViewArray, StructArray,
     };
+    #[cfg(feature = "unsigned-integers")]
+    use crate::arrow::array::{UInt16Array, UInt32Array, UInt64Array, UInt8Array};
     use crate::arrow::buffer::{OffsetBuffer, ScalarBuffer};
     use crate::arrow::datatypes::{
         DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema,
@@ -1357,6 +1393,112 @@ mod tests {
                 Some(20),
                 Some(false),
                 Some(b"y".to_vec()),
+            ),
+        ];
+        assert_eq!(visitor.data, expected);
+
+        Ok(())
+    }
+
+    #[cfg(feature = "unsigned-integers")]
+    #[test]
+    fn test_unsigned_run_array_extraction_via_visitor() -> DeltaResult<()> {
+        // Pattern: [val1, val1, null, null, val2]
+        let run_ends = Int64Array::from(vec![2, 4, 5]);
+        let mk_field = |name, dt| {
+            ArrowField::new(
+                name,
+                ArrowDataType::RunEndEncoded(
+                    Arc::new(ArrowField::new("run_ends", ArrowDataType::Int64, false)),
+                    Arc::new(ArrowField::new("values", dt, true)),
+                ),
+                true,
+            )
+        };
+
+        let columns: Vec<Arc<dyn Array>> = vec![
+            Arc::new(RunArray::<Int64Type>::try_new(
+                &run_ends,
+                &UInt8Array::from(vec![Some(1), None, Some(u8::MAX)]),
+            )?),
+            Arc::new(RunArray::<Int64Type>::try_new(
+                &run_ends,
+                &UInt16Array::from(vec![Some(2), None, Some(u16::MAX)]),
+            )?),
+            Arc::new(RunArray::<Int64Type>::try_new(
+                &run_ends,
+                &UInt32Array::from(vec![Some(3), None, Some(u32::MAX)]),
+            )?),
+            Arc::new(RunArray::<Int64Type>::try_new(
+                &run_ends,
+                &UInt64Array::from(vec![Some(4), None, Some(u64::MAX)]),
+            )?),
+        ];
+        let schema = Arc::new(ArrowSchema::new(vec![
+            mk_field("u8", ArrowDataType::UInt8),
+            mk_field("u16", ArrowDataType::UInt16),
+            mk_field("u32", ArrowDataType::UInt32),
+            mk_field("u64", ArrowDataType::UInt64),
+        ]));
+        let arrow_data = ArrowEngineData::new(RecordBatch::try_new(schema, columns)?);
+
+        type Row = (Option<u8>, Option<u16>, Option<u32>, Option<u64>);
+
+        struct TestVisitor {
+            data: Vec<Row>,
+        }
+
+        impl RowVisitor for TestVisitor {
+            fn selected_column_names_and_types(
+                &self,
+            ) -> (&'static [ColumnName], &'static [DataType]) {
+                static COLUMNS: LazyLock<[ColumnName; 4]> = LazyLock::new(|| {
+                    [
+                        ColumnName::new(["u8"]),
+                        ColumnName::new(["u16"]),
+                        ColumnName::new(["u32"]),
+                        ColumnName::new(["u64"]),
+                    ]
+                });
+                static TYPES: &[DataType] = &[
+                    DataType::UINT8,
+                    DataType::UINT16,
+                    DataType::UINT32,
+                    DataType::UINT64,
+                ];
+                (&*COLUMNS, TYPES)
+            }
+
+            fn visit<'a>(
+                &mut self,
+                row_count: usize,
+                getters: &[&'a dyn GetData<'a>],
+            ) -> DeltaResult<()> {
+                for i in 0..row_count {
+                    self.data.push((
+                        getters[0].get_uint8(i, "u8")?,
+                        getters[1].get_uint16(i, "u16")?,
+                        getters[2].get_uint32(i, "u32")?,
+                        getters[3].get_uint64(i, "u64")?,
+                    ));
+                }
+                Ok(())
+            }
+        }
+
+        let mut visitor = TestVisitor { data: vec![] };
+        visitor.visit_rows_of(&arrow_data)?;
+
+        let expected = vec![
+            (Some(1), Some(2), Some(3), Some(4)),
+            (Some(1), Some(2), Some(3), Some(4)),
+            (None, None, None, None),
+            (None, None, None, None),
+            (
+                Some(u8::MAX),
+                Some(u16::MAX),
+                Some(u32::MAX),
+                Some(u64::MAX),
             ),
         ];
         assert_eq!(visitor.data, expected);

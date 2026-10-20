@@ -307,6 +307,54 @@ pub extern "C" fn visit_expression_literal_byte(
     wrap_expression(state, Expression::literal(value))
 }
 
+/// EXPERIMENTAL. Visit a 8-bit unsigned `uint8` literal and return its expression id.
+///
+/// Only available when the `unsigned-integers` Cargo feature is enabled.
+#[cfg(feature = "unsigned-integers")]
+#[no_mangle]
+pub extern "C" fn visit_expression_literal_uint8(
+    state: &mut KernelExpressionVisitorState,
+    value: u8,
+) -> usize {
+    wrap_expression(state, Expression::literal(value))
+}
+
+/// EXPERIMENTAL. Visit a 16-bit unsigned `uint16` literal and return its expression id.
+///
+/// Only available when the `unsigned-integers` Cargo feature is enabled.
+#[cfg(feature = "unsigned-integers")]
+#[no_mangle]
+pub extern "C" fn visit_expression_literal_uint16(
+    state: &mut KernelExpressionVisitorState,
+    value: u16,
+) -> usize {
+    wrap_expression(state, Expression::literal(value))
+}
+
+/// EXPERIMENTAL. Visit a 32-bit unsigned `uint32` literal and return its expression id.
+///
+/// Only available when the `unsigned-integers` Cargo feature is enabled.
+#[cfg(feature = "unsigned-integers")]
+#[no_mangle]
+pub extern "C" fn visit_expression_literal_uint32(
+    state: &mut KernelExpressionVisitorState,
+    value: u32,
+) -> usize {
+    wrap_expression(state, Expression::literal(value))
+}
+
+/// EXPERIMENTAL. Visit a 64-bit unsigned `uint64` literal and return its expression id.
+///
+/// Only available when the `unsigned-integers` Cargo feature is enabled.
+#[cfg(feature = "unsigned-integers")]
+#[no_mangle]
+pub extern "C" fn visit_expression_literal_uint64(
+    state: &mut KernelExpressionVisitorState,
+    value: u64,
+) -> usize {
+    wrap_expression(state, Expression::literal(value))
+}
+
 #[cfg(feature = "float16")]
 #[no_mangle]
 pub extern "C" fn visit_expression_literal_float16(
@@ -476,14 +524,22 @@ pub(crate) enum NullTypeTag {
     /// WARNING: This variant MUST remain `= 12`. It is the only tag with special handling
     /// (precision/scale parameters), and C consumers key on the value `12` directly.
     Decimal = 12,
-    // Deliberately not feature gated, so timestamp_nanos/float16 number allocations are there
-    // even if the feature is disabled.
+    // Deliberately not feature gated, so timestamp_nanos/float16/unsigned integer number
+    // allocations are there even if the feature is disabled.
     /// EXPERIMENTAL. Null of type `timestamp_nanos` (nanoseconds since epoch, UTC-adjusted).
     TimestampNanos = 13,
     /// EXPERIMENTAL. Null of type `timestamp_nanos_ntz` (nanoseconds since epoch, no timezone).
     TimestampNanosNtz = 14,
     /// EXPERIMENTAL. Null of type `float16` (16-bit IEEE 754).
     Float16 = 15,
+    /// EXPERIMENTAL. Null of type `uint8` (8-bit unsigned integer).
+    Uint8 = 16,
+    /// EXPERIMENTAL. Null of type `uint16` (16-bit unsigned integer).
+    Uint16 = 17,
+    /// EXPERIMENTAL. Null of type `uint32` (32-bit unsigned integer).
+    Uint32 = 18,
+    /// EXPERIMENTAL. Null of type `uint64` (64-bit unsigned integer).
+    Uint64 = 19,
     /// Sentinel for non-primitive null types (struct, array, map, variant). Emitted by the
     /// kernel-to-engine visitor when the null's type is not a primitive. Engines that receive
     /// this tag should use opaque expressions or a schema visitor to obtain full type details.
@@ -514,6 +570,10 @@ impl TryFrom<u8> for NullTypeTag {
             13 => Ok(Self::TimestampNanos),
             14 => Ok(Self::TimestampNanosNtz),
             15 => Ok(Self::Float16),
+            16 => Ok(Self::Uint8),
+            17 => Ok(Self::Uint16),
+            18 => Ok(Self::Uint32),
+            19 => Ok(Self::Uint64),
             255 => Ok(Self::NonPrimitive),
             other => Err(delta_kernel::Error::generic(format!(
                 "Unrecognized null type tag: {other}"
@@ -548,6 +608,14 @@ impl NullTypeTag {
                 PrimitiveType::TimestampNanosNtz => (Self::TimestampNanosNtz, 0, 0),
                 PrimitiveType::Timestamp => (Self::Timestamp, 0, 0),
                 PrimitiveType::TimestampNtz => (Self::TimestampNtz, 0, 0),
+                #[cfg(feature = "unsigned-integers")]
+                PrimitiveType::Uint8 => (Self::Uint8, 0, 0),
+                #[cfg(feature = "unsigned-integers")]
+                PrimitiveType::Uint16 => (Self::Uint16, 0, 0),
+                #[cfg(feature = "unsigned-integers")]
+                PrimitiveType::Uint32 => (Self::Uint32, 0, 0),
+                #[cfg(feature = "unsigned-integers")]
+                PrimitiveType::Uint64 => (Self::Uint64, 0, 0),
                 PrimitiveType::Decimal(dt) => (Self::Decimal, dt.precision(), dt.scale()),
             },
             _ => (Self::NonPrimitive, 0, 0),
@@ -575,6 +643,18 @@ impl NullTypeTag {
             Self::Float16 => Err(delta_kernel::Error::generic(
                 "Experimental Cargo feature `float16` not enabled",
             )),
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint8 => Ok(DataType::UINT8),
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint16 => Ok(DataType::UINT16),
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint32 => Ok(DataType::UINT32),
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint64 => Ok(DataType::UINT64),
+            #[cfg(not(feature = "unsigned-integers"))]
+            Self::Uint8 | Self::Uint16 | Self::Uint32 | Self::Uint64 => Err(
+                delta_kernel::Error::generic("`unsigned-integers` Cargo feature not enabled"),
+            ),
             Self::Float => Ok(DataType::FLOAT),
             Self::Double => Ok(DataType::DOUBLE),
             Self::String => Ok(DataType::STRING),
@@ -902,13 +982,17 @@ mod tests {
     #[case(13, NullTypeTag::TimestampNanos)]
     #[case(14, NullTypeTag::TimestampNanosNtz)]
     #[case(15, NullTypeTag::Float16)]
+    #[case(16, NullTypeTag::Uint8)]
+    #[case(17, NullTypeTag::Uint16)]
+    #[case(18, NullTypeTag::Uint32)]
+    #[case(19, NullTypeTag::Uint64)]
     #[case(255, NullTypeTag::NonPrimitive)]
     fn try_from_u8_valid(#[case] value: u8, #[case] expected: NullTypeTag) {
         assert_eq!(NullTypeTag::try_from(value).unwrap(), expected);
     }
 
     #[rstest]
-    #[case(16)]
+    #[case(20)]
     #[case(42)]
     #[case(254)]
     fn try_from_u8_invalid(#[case] value: u8) {
@@ -934,7 +1018,7 @@ mod tests {
     #[test]
     fn visit_null_unrecognized_tag_returns_error() {
         let mut state = KernelExpressionVisitorState::default();
-        assert!(visit_expression_literal_null_impl(&mut state, 16, 0, 0).is_err());
+        assert!(visit_expression_literal_null_impl(&mut state, 20, 0, 0).is_err());
     }
 
     #[test]
@@ -962,6 +1046,10 @@ mod tests {
     #[case(DataType::TIMESTAMP_NTZ)]
     #[cfg_attr(feature = "nanosecond-timestamps", case(DataType::TIMESTAMP_NANOS))]
     #[cfg_attr(feature = "float16", case(DataType::FLOAT16))]
+    #[cfg_attr(feature = "unsigned-integers", case(DataType::UINT8))]
+    #[cfg_attr(feature = "unsigned-integers", case(DataType::UINT16))]
+    #[cfg_attr(feature = "unsigned-integers", case(DataType::UINT32))]
+    #[cfg_attr(feature = "unsigned-integers", case(DataType::UINT64))]
     fn null_type_round_trips_through_tag_encoding(#[case] data_type: DataType) {
         let (tag, precision, scale) = NullTypeTag::from_data_type(&data_type);
         let mut state = KernelExpressionVisitorState::default();

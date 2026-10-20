@@ -57,6 +57,8 @@ use delta_kernel::arrow::array::{
     Int16Array, Int32Array, Int64Array, Int8Array, RecordBatch, StringArray,
     TimestampMicrosecondArray,
 };
+#[cfg(feature = "unsigned-integers")]
+use delta_kernel::arrow::array::{UInt16Array, UInt32Array, UInt64Array, UInt8Array};
 use delta_kernel::arrow::datatypes::{DataType as ArrowDataType, Schema as ArrowSchema, TimeUnit};
 use delta_kernel::checkpoint::{CheckpointSpec, V2CheckpointConfig};
 use delta_kernel::committer::FileSystemCommitter;
@@ -1049,6 +1051,27 @@ fn generate_constant_column(arrow_type: &ArrowDataType, rows: usize, seed: usize
             let v = (seed * 1000) as i64;
             Arc::new(Int64Array::from(vec![v; rows]))
         }
+        // Values must match the partition values produced by `scalar_for_type`
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt8 => {
+            let v = (seed % 256) as u8;
+            Arc::new(UInt8Array::from(vec![v; rows]))
+        }
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt16 => {
+            let v = (seed % 65536) as u16;
+            Arc::new(UInt16Array::from(vec![v; rows]))
+        }
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt32 => {
+            let v = (seed as u32).wrapping_mul(1000);
+            Arc::new(UInt32Array::from(vec![v; rows]))
+        }
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt64 => {
+            let v = (seed as u64).wrapping_mul(1000);
+            Arc::new(UInt64Array::from(vec![v; rows]))
+        }
         ArrowDataType::Float32 => {
             let v = seed as f32 * 0.5;
             Arc::new(Float32Array::from(vec![v; rows]))
@@ -1116,6 +1139,28 @@ fn generate_column(arrow_type: &ArrowDataType, rows: usize, base: i32) -> ArrayR
         ArrowDataType::Int64 => {
             let values: Vec<i64> = (0..rows).map(|i| (base + i as i32) as i64 * 1000).collect();
             Arc::new(Int64Array::from(values))
+        }
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt8 => {
+            let values: Vec<u8> = (0..rows).map(|i| ((base + i as i32) % 256) as u8).collect();
+            Arc::new(UInt8Array::from(values))
+        }
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt16 => {
+            let values: Vec<u16> = (0..rows)
+                .map(|i| ((base + i as i32) % 65536) as u16)
+                .collect();
+            Arc::new(UInt16Array::from(values))
+        }
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt32 => {
+            let values: Vec<u32> = (0..rows).map(|i| (base + i as i32) as u32).collect();
+            Arc::new(UInt32Array::from(values))
+        }
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt64 => {
+            let values: Vec<u64> = (0..rows).map(|i| (base + i as i32) as u64 * 1000).collect();
+            Arc::new(UInt64Array::from(values))
         }
         #[cfg(feature = "float16")]
         ArrowDataType::Float16 => {
@@ -1378,6 +1423,14 @@ fn scalar_for_type(data_type: &DataType, seed: usize) -> Scalar {
                 Scalar::decimal(bits, dt.precision(), dt.scale())
                     .expect("test seed produced invalid decimal")
             }
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint8 => Scalar::Uint8((seed % 256) as u8),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint16 => Scalar::Uint16((seed % 65536) as u16),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint32 => Scalar::Uint32((seed as u32).wrapping_mul(1000)),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint64 => Scalar::Uint64((seed as u64).wrapping_mul(1000)),
         },
         other => panic!("partition columns must be primitive types, got: {other:?}"),
     }
@@ -1621,6 +1674,39 @@ mod tests {
         let engine: Arc<dyn delta_kernel::Engine> =
             Arc::new(DefaultEngineBuilder::new(table.store().clone()).build());
         let snap = Snapshot::builder_for(table.table_root()).build(engine.as_ref())?;
+        let scan = snap.scan_builder().build()?;
+        let batches = crate::read_scan(&scan, engine)?;
+        let total: usize = batches.iter().map(|b| b.num_rows()).sum();
+        assert_eq!(total, 10);
+        Ok(())
+    }
+
+    #[cfg(feature = "unsigned-integers")]
+    #[rstest]
+    fn test_unsigned_integer_table_with_data(
+        #[values(false, true)] partitioned: bool,
+    ) -> DeltaResult<()> {
+        let schema = Arc::new(StructType::new_unchecked([
+            StructField::nullable("u8_col", DataType::UINT8),
+            StructField::nullable("u16_col", DataType::UINT16),
+            StructField::nullable("u32_col", DataType::UINT32),
+            StructField::nullable("u64_col", DataType::UINT64),
+            StructField::nullable("value", DataType::INTEGER),
+        ]));
+        let partition_columns: &[&str] = if partitioned {
+            &["u8_col", "u16_col", "u32_col", "u64_col"]
+        } else {
+            &[]
+        };
+        let table = TestTableBuilder::new()
+            .with_log_state(LogState::with_latest_version(1))
+            .with_schema(schema.clone())
+            .with_partition_columns(partition_columns.iter().copied())
+            .build()?;
+        let engine: Arc<dyn delta_kernel::Engine> =
+            Arc::new(DefaultEngineBuilder::new(table.store().clone()).build());
+        let snap = Snapshot::builder_for(table.table_root()).build(engine.as_ref())?;
+        assert_eq!(snap.schema(), schema);
         let scan = snap.scan_builder().build()?;
         let batches = crate::read_scan(&scan, engine)?;
         let total: usize = batches.iter().map(|b| b.num_rows()).sum();

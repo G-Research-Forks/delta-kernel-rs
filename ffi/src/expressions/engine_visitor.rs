@@ -76,6 +76,18 @@ pub struct EngineExpressionVisitor {
     pub visit_literal_short: VisitLiteralFn<i16>,
     /// Visit an 8bit `byte` belonging to the list identified by `sibling_list_id`.
     pub visit_literal_byte: VisitLiteralFn<i8>,
+    /// EXPERIMENTAL. Visit an 8bit unsigned `uint8` belonging to the list identified by
+    /// `sibling_list_id`.
+    pub visit_literal_uint8: VisitLiteralFn<u8>,
+    /// EXPERIMENTAL. Visit a 16bit unsigned `uint16` belonging to the list identified by
+    /// `sibling_list_id`.
+    pub visit_literal_uint16: VisitLiteralFn<u16>,
+    /// EXPERIMENTAL. Visit a 32bit unsigned `uint32` belonging to the list identified by
+    /// `sibling_list_id`.
+    pub visit_literal_uint32: VisitLiteralFn<u32>,
+    /// EXPERIMENTAL. Visit a 64bit unsigned `uint64` belonging to the list identified by
+    /// `sibling_list_id`.
+    pub visit_literal_uint64: VisitLiteralFn<u64>,
     /// Visit a 16bit `float` belonging to the list identified by `sibling_list_id`.
     /// f16 values are represented as u16 in the C API.
     pub visit_literal_float16: VisitLiteralFn<u16>,
@@ -581,6 +593,14 @@ fn visit_expression_scalar(
         Scalar::Long(val) => call!(visitor, visit_literal_long, sibling_list_id, *val),
         Scalar::Short(val) => call!(visitor, visit_literal_short, sibling_list_id, *val),
         Scalar::Byte(val) => call!(visitor, visit_literal_byte, sibling_list_id, *val),
+        #[cfg(feature = "unsigned-integers")]
+        Scalar::Uint8(val) => call!(visitor, visit_literal_uint8, sibling_list_id, *val),
+        #[cfg(feature = "unsigned-integers")]
+        Scalar::Uint16(val) => call!(visitor, visit_literal_uint16, sibling_list_id, *val),
+        #[cfg(feature = "unsigned-integers")]
+        Scalar::Uint32(val) => call!(visitor, visit_literal_uint32, sibling_list_id, *val),
+        #[cfg(feature = "unsigned-integers")]
+        Scalar::Uint64(val) => call!(visitor, visit_literal_uint64, sibling_list_id, *val),
         Scalar::Float(val) => call!(visitor, visit_literal_float, sibling_list_id, *val),
         #[cfg(feature = "float16")]
         Scalar::Float16(val) => call!(

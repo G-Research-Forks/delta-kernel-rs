@@ -45,6 +45,14 @@ impl_to_data_type!(
     (bool, DataType::BOOLEAN)
 );
 
+#[cfg(feature = "unsigned-integers")]
+impl_to_data_type!(
+    (u8, DataType::UINT8),
+    (u16, DataType::UINT16),
+    (u32, DataType::UINT32),
+    (u64, DataType::UINT64)
+);
+
 // ToDataType impl for non-nullable array types
 impl<T: ToDataType> ToDataType for Vec<T> {
     fn to_data_type() -> DataType {

@@ -349,6 +349,14 @@ impl TryFromKernel<&DataType> for ArrowDataType {
                     PrimitiveType::Byte => Ok(ArrowDataType::Int8),
                     #[cfg(feature = "float16")]
                     PrimitiveType::Float16 => Ok(ArrowDataType::Float16),
+                    #[cfg(feature = "unsigned-integers")]
+                    PrimitiveType::Uint8 => Ok(ArrowDataType::UInt8),
+                    #[cfg(feature = "unsigned-integers")]
+                    PrimitiveType::Uint16 => Ok(ArrowDataType::UInt16),
+                    #[cfg(feature = "unsigned-integers")]
+                    PrimitiveType::Uint32 => Ok(ArrowDataType::UInt32),
+                    #[cfg(feature = "unsigned-integers")]
+                    PrimitiveType::Uint64 => Ok(ArrowDataType::UInt64),
                     PrimitiveType::Float => Ok(ArrowDataType::Float32),
                     PrimitiveType::Double => Ok(ArrowDataType::Float64),
                     PrimitiveType::Boolean => Ok(ArrowDataType::Boolean),
@@ -561,9 +569,21 @@ impl TryFromArrow<&ArrowDataType> for DataType {
             ArrowDataType::Int32 => Ok(DataType::INTEGER),
             ArrowDataType::Int16 => Ok(DataType::SHORT),
             ArrowDataType::Int8 => Ok(DataType::BYTE),
+            #[cfg(feature = "unsigned-integers")]
+            ArrowDataType::UInt64 => Ok(DataType::UINT64),
+            #[cfg(feature = "unsigned-integers")]
+            ArrowDataType::UInt32 => Ok(DataType::UINT32),
+            #[cfg(feature = "unsigned-integers")]
+            ArrowDataType::UInt16 => Ok(DataType::UINT16),
+            #[cfg(feature = "unsigned-integers")]
+            ArrowDataType::UInt8 => Ok(DataType::UINT8),
+            #[cfg(not(feature = "unsigned-integers"))]
             ArrowDataType::UInt64 => Ok(DataType::LONG), // undocumented type
+            #[cfg(not(feature = "unsigned-integers"))]
             ArrowDataType::UInt32 => Ok(DataType::INTEGER),
+            #[cfg(not(feature = "unsigned-integers"))]
             ArrowDataType::UInt16 => Ok(DataType::SHORT),
+            #[cfg(not(feature = "unsigned-integers"))]
             ArrowDataType::UInt8 => Ok(DataType::BYTE),
             #[cfg(feature = "float16")]
             ArrowDataType::Float16 => Ok(DataType::FLOAT16),
@@ -1083,5 +1103,22 @@ mod tests {
             ArrowField::new("element", ArrowDataType::Int32, true)
                 .with_metadata([(PARQUET_FIELD_ID_META_KEY.to_string(), id.to_string())].into()),
         )
+    }
+
+    #[cfg(feature = "unsigned-integers")]
+    #[rstest]
+    #[case::uint8(DataType::UINT8, ArrowDataType::UInt8)]
+    #[case::uint16(DataType::UINT16, ArrowDataType::UInt16)]
+    #[case::uint32(DataType::UINT32, ArrowDataType::UInt32)]
+    #[case::uint64(DataType::UINT64, ArrowDataType::UInt64)]
+    fn unsigned_kernel_arrow_roundtrip(
+        #[case] kernel_type: DataType,
+        #[case] arrow_type: ArrowDataType,
+    ) {
+        assert_eq!(
+            ArrowDataType::try_from_kernel(&kernel_type).unwrap(),
+            arrow_type
+        );
+        assert_eq!(DataType::try_from_arrow(&arrow_type).unwrap(), kernel_type);
     }
 }

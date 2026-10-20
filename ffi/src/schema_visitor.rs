@@ -182,6 +182,82 @@ pub unsafe extern "C" fn visit_field_byte(
         .into_extern_result(&allocate_error)
 }
 
+#[cfg(feature = "unsigned-integers")]
+/// EXPERIMENTAL. Visit a uint8 field. Uint8 fields store 8-bit unsigned integers.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_uint8(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    visit_field_primitive_impl(state, name_str, PrimitiveType::Uint8, nullable)
+        .into_extern_result(&allocate_error)
+}
+
+#[cfg(feature = "unsigned-integers")]
+/// EXPERIMENTAL. Visit a uint16 field. Uint16 fields store 16-bit unsigned integers.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_uint16(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    visit_field_primitive_impl(state, name_str, PrimitiveType::Uint16, nullable)
+        .into_extern_result(&allocate_error)
+}
+
+#[cfg(feature = "unsigned-integers")]
+/// EXPERIMENTAL. Visit a uint32 field. Uint32 fields store 32-bit unsigned integers.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_uint32(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    visit_field_primitive_impl(state, name_str, PrimitiveType::Uint32, nullable)
+        .into_extern_result(&allocate_error)
+}
+
+#[cfg(feature = "unsigned-integers")]
+/// EXPERIMENTAL. Visit a uint64 field. Uint64 fields store 64-bit unsigned integers.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_uint64(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    visit_field_primitive_impl(state, name_str, PrimitiveType::Uint64, nullable)
+        .into_extern_result(&allocate_error)
+}
+
 #[cfg(feature = "float16")]
 /// Visit a float16 field. Float16 fields store 16-bit floating point numbers.
 ///
@@ -808,6 +884,10 @@ mod tests {
         //   col_double: double,
         //   col_float: float,
         //   col_float16: f16,
+        //   col_uint8: uint8,
+        //   col_uint16: uint16,
+        //   col_uint32: uint32,
+        //   col_uint64: uint64,
         //   col_boolean: boolean,
         //   col_binary: binary,
         //   col_date: date,
@@ -833,6 +913,14 @@ mod tests {
         let col_double = visit_field!(double, state, "col_double", false);
         #[cfg(feature = "float16")]
         let col_float16 = visit_field!(float16, state, "col_float16", false);
+        #[cfg(feature = "unsigned-integers")]
+        let col_uint8 = visit_field!(uint8, state, "col_uint8", false);
+        #[cfg(feature = "unsigned-integers")]
+        let col_uint16 = visit_field!(uint16, state, "col_uint16", false);
+        #[cfg(feature = "unsigned-integers")]
+        let col_uint32 = visit_field!(uint32, state, "col_uint32", false);
+        #[cfg(feature = "unsigned-integers")]
+        let col_uint64 = visit_field!(uint64, state, "col_uint64", false);
         let col_float = visit_field!(float, state, "col_float", false);
         let col_boolean = visit_field!(boolean, state, "col_boolean", false);
         let col_binary = visit_field!(binary, state, "col_binary", false);
@@ -895,6 +983,14 @@ mod tests {
             col_timestamp_nanos_ntz,
             #[cfg(feature = "float16")]
             col_float16,
+            #[cfg(feature = "unsigned-integers")]
+            col_uint8,
+            #[cfg(feature = "unsigned-integers")]
+            col_uint16,
+            #[cfg(feature = "unsigned-integers")]
+            col_uint32,
+            #[cfg(feature = "unsigned-integers")]
+            col_uint64,
             col_decimal,
             col_array,
             col_map,
@@ -936,6 +1032,14 @@ mod tests {
             ("col_timestamp_nanos_ntz", PrimitiveType::TimestampNanosNtz),
             #[cfg(feature = "float16")]
             ("col_float16", PrimitiveType::Float16),
+            #[cfg(feature = "unsigned-integers")]
+            ("col_uint8", PrimitiveType::Uint8),
+            #[cfg(feature = "unsigned-integers")]
+            ("col_uint16", PrimitiveType::Uint16),
+            #[cfg(feature = "unsigned-integers")]
+            ("col_uint32", PrimitiveType::Uint32),
+            #[cfg(feature = "unsigned-integers")]
+            ("col_uint64", PrimitiveType::Uint64),
         ];
         assert_eq!(fields.len(), primitive_field_expectations.len() + 5);
 

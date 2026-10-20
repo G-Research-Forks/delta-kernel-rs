@@ -125,6 +125,10 @@ schema-diff = []
 # corresponding RFC (https://github.com/delta-io/delta/issues/6081).
 nanosecond-timestamps = ["test_utils/nanosecond-timestamps"]
 
+# Unsigned integer (uint8/uint16/uint32/uint64) primitive types and the experimental
+# `unsignedIntegerTypes-dev` table feature.
+unsigned-integers = ["test_utils/unsigned-integers"]
+
 # this is an 'internal' feature flag which has all the shared bits from default-engine-native-tls
 # and default-engine-rustls
 default-engine-base = [

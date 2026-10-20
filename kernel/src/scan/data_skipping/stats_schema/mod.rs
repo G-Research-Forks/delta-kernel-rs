@@ -417,6 +417,17 @@ pub(crate) fn is_skipping_eligible_datatype(data_type: &PrimitiveType) -> bool {
         &PrimitiveType::TimestampNanos | &PrimitiveType::TimestampNanosNtz
     );
 
+    #[cfg(not(feature = "unsigned-integers"))]
+    let is_unsigned = false;
+    #[cfg(feature = "unsigned-integers")]
+    let is_unsigned = matches!(
+        data_type,
+        &PrimitiveType::Uint8
+            | &PrimitiveType::Uint16
+            | &PrimitiveType::Uint32
+            | &PrimitiveType::Uint64
+    );
+
     matches!(
         data_type,
         &PrimitiveType::Byte
@@ -432,6 +443,7 @@ pub(crate) fn is_skipping_eligible_datatype(data_type: &PrimitiveType) -> bool {
             | PrimitiveType::Decimal(_)
     ) || is_float16
         || is_nanos
+        || is_unsigned
 }
 
 #[cfg(test)]

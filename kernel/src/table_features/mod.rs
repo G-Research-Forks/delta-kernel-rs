@@ -22,6 +22,10 @@ pub(crate) use timestamp_nanos::{
 pub(crate) use timestamp_ntz::{
     schema_contains_timestamp_ntz, validate_timestamp_ntz_feature_support,
 };
+#[cfg(feature = "unsigned-integers")]
+pub(crate) use unsigned_integers::{
+    schema_contains_unsigned_integers, validate_unsigned_integer_types_feature_support,
+};
 
 use crate::actions::Protocol;
 use crate::expressions::Scalar;
@@ -36,6 +40,8 @@ mod float16;
 #[cfg(feature = "nanosecond-timestamps")]
 mod timestamp_nanos;
 mod timestamp_ntz;
+#[cfg(feature = "unsigned-integers")]
+mod unsigned_integers;
 
 /// Minimum reader/writer protocol version that the kernel can handle.
 pub const MIN_VALID_RW_VERSION: i32 = 1;
@@ -176,6 +182,12 @@ pub(crate) enum TableFeature {
     #[strum(serialize = "variantShredding-preview")]
     #[serde(rename = "variantShredding-preview")]
     VariantShreddingPreview,
+    #[cfg(feature = "unsigned-integers")]
+    /// Unsigned integer column types (uint8/uint16/uint32/uint64). Experimental: serializes to
+    /// `unsignedIntegerTypes-dev` per the Delta RFC process for in-development features.
+    #[strum(serialize = "unsignedIntegerTypes-dev")]
+    #[serde(rename = "unsignedIntegerTypes-dev")]
+    UnsignedIntegerTypes,
 
     #[serde(untagged)]
     #[strum(default)]
@@ -638,6 +650,15 @@ static VARIANT_SHREDDING_PREVIEW_INFO: FeatureInfo = FeatureInfo {
     enablement_check: EnablementCheck::AlwaysIfSupported,
 };
 
+#[cfg(feature = "unsigned-integers")]
+static UNSIGNED_INTEGER_TYPES_INFO: FeatureInfo = FeatureInfo {
+    feature_type: FeatureType::ReaderWriter,
+    min_legacy_version: None,
+    feature_requirements: &[],
+    kernel_support: KernelSupport::Supported,
+    enablement_check: EnablementCheck::AlwaysIfSupported,
+};
+
 /// By definition, kernel cannot know how to handle unknown features and must assume they're always
 /// enabled if supported in protocol. However, the read path ignores all writer-only features,
 /// including unknown ones. Unknown features are never inferred from legacy protocol versions.
@@ -669,6 +690,8 @@ impl TableFeature {
             | TableFeature::VariantType
             | TableFeature::VariantTypePreview
             | TableFeature::VariantShreddingPreview => FeatureType::ReaderWriter,
+            #[cfg(feature = "unsigned-integers")]
+            TableFeature::UnsignedIntegerTypes => FeatureType::ReaderWriter,
             #[cfg(feature = "float16")]
             TableFeature::Float16 => FeatureType::ReaderWriter,
             #[cfg(feature = "nanosecond-timestamps")]
@@ -740,6 +763,8 @@ impl TableFeature {
             TableFeature::VariantType => &VARIANT_TYPE_INFO,
             TableFeature::VariantTypePreview => &VARIANT_TYPE_PREVIEW_INFO,
             TableFeature::VariantShreddingPreview => &VARIANT_SHREDDING_PREVIEW_INFO,
+            #[cfg(feature = "unsigned-integers")]
+            TableFeature::UnsignedIntegerTypes => &UNSIGNED_INTEGER_TYPES_INFO,
 
             // Unknown features: not supported by kernel, no legacy version inference.
             TableFeature::Unknown(_) => &UNKNOWN_FEATURE_INFO,
@@ -881,6 +906,8 @@ mod tests {
                 TableFeature::VariantType => "variantType",
                 TableFeature::VariantTypePreview => "variantType-preview",
                 TableFeature::VariantShreddingPreview => "variantShredding-preview",
+                #[cfg(feature = "unsigned-integers")]
+                TableFeature::UnsignedIntegerTypes => "unsignedIntegerTypes-dev",
                 TableFeature::Unknown(_) => continue, // tested in test_unknown_features
             };
 
@@ -895,5 +922,18 @@ mod tests {
             let deserialized: TableFeature = serde_json::from_str(&serialized).unwrap();
             assert_eq!(deserialized, feature);
         }
+    }
+
+    #[cfg(feature = "unsigned-integers")]
+    #[test]
+    fn unsigned_integer_types_feature_name_roundtrips() {
+        let f = TableFeature::UnsignedIntegerTypes;
+        assert_eq!(
+            serde_json::to_value(&f).unwrap(),
+            serde_json::json!("unsignedIntegerTypes-dev")
+        );
+        let de: TableFeature =
+            serde_json::from_value(serde_json::json!("unsignedIntegerTypes-dev")).unwrap();
+        assert_eq!(de, f);
     }
 }

@@ -10,6 +10,8 @@ use super::*;
 #[cfg(feature = "float16")]
 use crate::arrow::array::Float16Array;
 use crate::arrow::array::{Int64Array, RecordBatch, StringArray, StructArray};
+#[cfg(feature = "unsigned-integers")]
+use crate::arrow::array::{UInt32Array, UInt64Array};
 use crate::arrow::datatypes::{DataType as ArrowDataType, Field, Fields, Schema as ArrowSchema};
 use crate::expressions::{
     column_expr, column_name, column_pred, Expression, OpaquePredicateOp, ScalarExpressionEvaluator,
@@ -1206,4 +1208,117 @@ fn test_float16_from_bytes() {
     // Wrong length -> None
     assert_eq!(float16_from_bytes(Some(&[0x00])), None);
     assert_eq!(float16_from_bytes(Some(&[0x00, 0x3E, 0x00])), None);
+}
+
+#[cfg(feature = "unsigned-integers")]
+/// Writes a single-column parquet file from `array` and returns the column-chunk statistics of its
+/// only row group, so we can verify unsigned min/max extraction end-to-end against the bytes
+/// parquet-rs actually wrote and the ordering it used to pick min/max.
+fn unsigned_column_statistics(
+    field: Field,
+    array: Arc<dyn crate::arrow::array::Array>,
+) -> Statistics {
+    let schema = Arc::new(ArrowSchema::new(vec![field]));
+    let batch = RecordBatch::try_new(schema.clone(), vec![array]).unwrap();
+
+    let tmp = tempfile::NamedTempFile::new().unwrap();
+    let file = tmp.as_file().try_clone().unwrap();
+    let mut writer = ArrowWriter::try_new(file, schema, None).unwrap();
+    writer.write(&batch).unwrap();
+    writer.close().unwrap();
+
+    let reader = SerializedFileReader::new(File::open(tmp.path()).unwrap()).unwrap();
+    reader
+        .metadata()
+        .row_group(0)
+        .column(0)
+        .statistics()
+        .unwrap()
+        .clone()
+}
+
+#[cfg(feature = "unsigned-integers")]
+/// GATE TEST: verifies that parquet-rs computes unsigned column min/max with UNSIGNED ordering.
+///
+/// The uint64 values are chosen so signed vs. unsigned ordering disagree on both ends: under
+/// signed i64 ordering the min would be 2^63 (the most-negative bit pattern) and the max would be
+/// 0, whereas the correct unsigned min/max are 0 and 2^64-1. If parquet-rs picked min/max by signed
+/// ordering, the assertions below fail loudly -- meaning kernel bit-reinterpretation alone is
+/// insufficient and a writer-side ordering fix is required.
+#[test]
+fn extract_unsigned_stats_uses_unsigned_ordering() {
+    // uint64: [0, 2^63, 2^64-1]
+    let u64_field = Field::new("u64", ArrowDataType::UInt64, false);
+    let u64_array = Arc::new(UInt64Array::from(vec![
+        0u64,
+        9223372036854775808,  // 2^63
+        18446744073709551615, // 2^64-1
+    ]));
+    let u64_stats = unsigned_column_statistics(u64_field, u64_array);
+
+    assert_eq!(
+        extract_min_scalar(&DataType::UINT64, &u64_stats),
+        Some(Scalar::Uint64(0)),
+        "uint64 min must be 0 under unsigned ordering; got: {:?}",
+        extract_min_scalar(&DataType::UINT64, &u64_stats),
+    );
+    assert_eq!(
+        extract_max_scalar(&DataType::UINT64, &u64_stats),
+        Some(Scalar::Uint64(18446744073709551615)),
+        "uint64 max must be 2^64-1 under unsigned ordering; got: {:?}",
+        extract_max_scalar(&DataType::UINT64, &u64_stats),
+    );
+
+    // uint32: [0, 2^32-1]
+    let u32_field = Field::new("u32", ArrowDataType::UInt32, false);
+    let u32_array = Arc::new(UInt32Array::from(vec![0u32, 4294967295]));
+    let u32_stats = unsigned_column_statistics(u32_field, u32_array);
+
+    assert!(matches!(u32_stats, Statistics::Int32(_)));
+    assert_eq!(
+        extract_min_scalar(&DataType::UINT32, &u32_stats),
+        Some(Scalar::Uint32(0)),
+    );
+    assert_eq!(
+        extract_max_scalar(&DataType::UINT32, &u32_stats),
+        Some(Scalar::Uint32(4294967295)),
+    );
+}
+
+/// Stats read from the deprecated min/max fields were computed with signed ordering by older
+/// writers, so they must not be used for unsigned columns.
+#[cfg(feature = "unsigned-integers")]
+#[rstest::rstest]
+#[case::uint8(DataType::UINT8, Statistics::int32(Some(-56), Some(1), None, Some(0), true))]
+#[case::uint16(DataType::UINT16, Statistics::int32(Some(-1), Some(1), None, Some(0), true))]
+#[case::uint32(
+    DataType::UINT32,
+    Statistics::int32(Some(i32::MIN), Some(1), None, Some(0), true)
+)]
+#[case::uint64(
+    DataType::UINT64,
+    Statistics::int64(Some(i64::MIN), Some(1), None, Some(0), true)
+)]
+fn extract_unsigned_stats_ignores_deprecated_min_max(
+    #[case] data_type: DataType,
+    #[case] stats: Statistics,
+) {
+    assert!(stats.is_min_max_deprecated());
+    assert_eq!(extract_min_scalar(&data_type, &stats), None);
+    assert_eq!(extract_max_scalar(&data_type, &stats), None);
+}
+
+/// Signed integer stats from the deprecated min/max fields remain usable, since signed ordering
+/// is correct for them.
+#[test]
+fn extract_signed_stats_uses_deprecated_min_max() {
+    let stats = Statistics::int64(Some(-5), Some(10), None, Some(0), true);
+    assert_eq!(
+        extract_min_scalar(&DataType::LONG, &stats),
+        Some(Scalar::Long(-5))
+    );
+    assert_eq!(
+        extract_max_scalar(&DataType::LONG, &stats),
+        Some(Scalar::Long(10))
+    );
 }

@@ -12,6 +12,8 @@ mod row_tracking;
 #[cfg(feature = "nanosecond-timestamps")]
 mod timestamp_nanos;
 mod timestamp_ntz;
+#[cfg(feature = "unsigned-integers")]
+mod unsigned_integers;
 mod variant;
 
 use std::sync::Arc;

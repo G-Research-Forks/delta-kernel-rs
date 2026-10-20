@@ -58,6 +58,9 @@ arrow-57 = ["delta_kernel/arrow-57"]
 # Experimental feature adding float16 primitive type:
 float16 = ["dep:half", "delta_kernel/float16", "test_utils/float16"]
 
+# Experimental feature adding unsigned integer primitive types:
+unsigned-integers = ["delta_kernel/unsigned-integers", "test_utils/unsigned-integers"]
+
 # This is an 'internal' feature flag which has all the shared bits from default-engine-native-tls and
 # default-engine-rustls. There is a check in kernel/lib.rs to ensure you have enabled one of
 # default-engine-native-tls or default-engine-rustls, so default-engine-base will not work by itself
