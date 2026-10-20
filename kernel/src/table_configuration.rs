@@ -32,6 +32,8 @@ use crate::table_features::validate_float16_feature_support;
 use crate::table_features::validate_geospatial_feature_support;
 #[cfg(feature = "nanosecond-timestamps")]
 use crate::table_features::validate_timestamp_nanos_feature_support;
+#[cfg(feature = "unsigned-integers")]
+use crate::table_features::validate_unsigned_integer_types_feature_support;
 use crate::table_features::{
     check_reader_version_range, column_mapping_mode, extract_enabled_reader_features,
     get_any_level_column_physical_name, validate_iceberg_compat_if_needed,
@@ -455,6 +457,9 @@ impl TableConfiguration {
 
         #[cfg(feature = "float16")]
         validate_float16_feature_support(&table_config)?;
+
+        #[cfg(feature = "unsigned-integers")]
+        validate_unsigned_integer_types_feature_support(&table_config)?;
 
         Ok(table_config)
     }

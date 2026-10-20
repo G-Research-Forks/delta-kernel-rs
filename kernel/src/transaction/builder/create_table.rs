@@ -31,6 +31,8 @@ use crate::table_configuration::TableConfiguration;
 use crate::table_features::schema_contains_float16;
 #[cfg(feature = "nanosecond-timestamps")]
 use crate::table_features::schema_contains_timestamp_nanos;
+#[cfg(feature = "unsigned-integers")]
+use crate::table_features::schema_contains_unsigned_integers;
 use crate::table_features::{
     add_feature_to_lists, assign_column_mapping_metadata, auto_enable_property_driven_features,
     ensure_domain_metadata_dependency, find_max_column_id_in_schema,
@@ -449,6 +451,23 @@ fn maybe_enable_float16(schema: &SchemaRef, validated: &mut ValidatedTableProper
     if schema_contains_float16(schema) {
         add_feature_to_lists(
             TableFeature::Float16,
+            &mut validated.reader_features,
+            &mut validated.writer_features,
+        );
+    }
+}
+
+#[cfg(feature = "unsigned-integers")]
+/// Conditionally adds the `unsignedIntegerTypes-dev` feature to the protocol when the schema
+/// contains unsigned integer columns anywhere in the schema tree (top-level, nested structs,
+/// arrays, maps).
+fn maybe_enable_unsigned_integer_types(
+    schema: &SchemaRef,
+    validated: &mut ValidatedTableProperties,
+) {
+    if schema_contains_unsigned_integers(schema) {
+        add_feature_to_lists(
+            TableFeature::UnsignedIntegerTypes,
             &mut validated.reader_features,
             &mut validated.writer_features,
         );
@@ -1222,6 +1241,9 @@ impl TransactionBuilder<CreateTable> {
 
         #[cfg(feature = "float16")]
         maybe_enable_float16(&effective_schema, &mut validated);
+
+        #[cfg(feature = "unsigned-integers")]
+        maybe_enable_unsigned_integer_types(&effective_schema, &mut validated);
 
         // Property-driven auto-enablement: check enablement properties
         maybe_auto_enable_property_driven_features(&mut validated);

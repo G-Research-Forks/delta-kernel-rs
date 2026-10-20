@@ -61,6 +61,15 @@ impl_to_data_type!(
     (bool, DataType::BOOLEAN)
 );
 
+// `u8` is deliberately excluded: `Vec<u8>` converts to a binary scalar, which would conflict
+// with the `Vec<T>` -> array scalar conversion if `u8` were a `ToDataType` element type.
+#[cfg(feature = "unsigned-integers")]
+impl_to_data_type!(
+    (u16, DataType::UINT16),
+    (u32, DataType::UINT32),
+    (u64, DataType::UINT64)
+);
+
 // ToDataType impl for non-nullable array types
 impl<T: ToDataType> ToDataType for Vec<T> {
     fn to_data_type() -> DataType {

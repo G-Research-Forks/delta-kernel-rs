@@ -44,6 +44,7 @@ native-tls = ["reqwest/native-tls"]
 rustls = ["reqwest/rustls", "dep:rustls-native-certs"]
 nanosecond-timestamps = ["delta_kernel/nanosecond-timestamps"]
 float16 = ["delta_kernel/float16", "dep:half"]
+unsigned-integers = ["delta_kernel/unsigned-integers"]
 
 [dev-dependencies]
 delta_kernel_default_engine_test_utils = { path = "./test-utils" }
