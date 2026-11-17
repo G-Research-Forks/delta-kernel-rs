@@ -423,7 +423,7 @@ pub unsafe extern "C" fn visit_field_timestamp_nanos(
 }
 
 #[cfg(feature = "nanosecond-time")]
-/// EXPERIMENTAL. Visit a time_nanos field. Time_nanos fields store a time of day in nanoseconds
+/// EXPERIMENTAL. Visit a `time(9)` field. These fields store a time of day in nanoseconds
 /// since midnight, with no timezone.
 ///
 /// # Safety

@@ -246,7 +246,7 @@ fn format_time_nanos(nanos: i64) -> DeltaResult<String> {
         .map(|time| time.format("%H:%M:%S%.9f").to_string())
         .ok_or_else(|| {
             Error::generic(format!(
-                "time_nanos value {nanos} nanoseconds from midnight is out of range"
+                "time(9) value {nanos} nanoseconds from midnight is out of range"
             ))
         })
 }

@@ -129,7 +129,7 @@ nanosecond-timestamps = ["test_utils/nanosecond-timestamps"]
 # `unsignedIntegerTypes-dev` table feature.
 unsigned-integers = ["test_utils/unsigned-integers"]
 
-# Time of day in nanoseconds (`time_nanos`) primitive type and the experimental
+# Time of day in nanoseconds (`time(9)`) primitive type and the experimental
 # `timeNanos-dev` table feature.
 nanosecond-time = ["test_utils/nanosecond-time"]
 

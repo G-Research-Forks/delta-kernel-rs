@@ -467,7 +467,7 @@ fn maybe_enable_unsigned_integer_types(
 
 #[cfg(feature = "nanosecond-time")]
 /// Conditionally adds the `timeNanos-dev` feature to the protocol when the schema contains
-/// `time_nanos` columns anywhere in the schema tree (top-level, nested structs, arrays, maps).
+/// `time(9)` columns anywhere in the schema tree (top-level, nested structs, arrays, maps).
 fn maybe_enable_time_nanos(schema: &SchemaRef, validated: &mut ValidatedTableProperties) {
     if schema_contains_time_nanos(schema) {
         add_feature_to_lists(

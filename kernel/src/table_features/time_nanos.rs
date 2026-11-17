@@ -9,7 +9,7 @@ use crate::transforms::SchemaTransform;
 use crate::utils::require;
 use crate::{transform_output_type, DeltaResult, Error};
 
-/// Validates that if a table schema contains `time_nanos` columns, the table must have the
+/// Validates that if a table schema contains `time(9)` columns, the table must have the
 /// `timeNanos-dev` feature in both reader and writer features.
 pub(crate) fn validate_time_nanos_feature_support(tc: &TableConfiguration) -> DeltaResult<()> {
     let protocol = tc.protocol();
@@ -17,7 +17,7 @@ pub(crate) fn validate_time_nanos_feature_support(tc: &TableConfiguration) -> De
         require!(
             !schema_contains_time_nanos(&tc.logical_schema()),
             Error::unsupported(
-                "Table contains time_nanos columns but does not have the required \
+                "Table contains time(9) columns but does not have the required \
                  'timeNanos-dev' feature in reader and writer features"
             )
         );
@@ -26,7 +26,7 @@ pub(crate) fn validate_time_nanos_feature_support(tc: &TableConfiguration) -> De
 }
 
 /// Checks if any column in the schema (including nested structs, arrays, maps) uses the
-/// `time_nanos` primitive type.
+/// `time(9)` primitive type.
 pub(crate) fn schema_contains_time_nanos(schema: &Schema) -> bool {
     let mut uses_time_nanos = UsesTimeNanos(false);
     let _ = uses_time_nanos.transform_struct(schema);
@@ -89,7 +89,7 @@ mod tests {
             &protocol_with,
             &protocol_without,
             &[&nested_struct, &in_array, &in_map_key],
-            "Table contains time_nanos columns but does not have the required \
+            "Table contains time(9) columns but does not have the required \
              'timeNanos-dev' feature in reader and writer features",
         );
     }

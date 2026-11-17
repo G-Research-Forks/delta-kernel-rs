@@ -553,7 +553,7 @@ pub(crate) enum NullTypeTag {
     Uint32 = 18,
     /// EXPERIMENTAL. Null of type `uint64` (64-bit unsigned integer).
     Uint64 = 19,
-    /// EXPERIMENTAL. Null of type `time_nanos` (nanoseconds since midnight, no timezone).
+    /// EXPERIMENTAL. Null of type `time(9)` (nanoseconds since midnight, no timezone).
     TimeNanos = 20,
     /// Sentinel for non-primitive null types (struct, array, map, variant). Emitted by the
     /// kernel-to-engine visitor when the null's type is not a primitive. Engines that receive

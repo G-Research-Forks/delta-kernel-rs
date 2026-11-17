@@ -1,6 +1,6 @@
 //! Time of day in nanoseconds integration tests for the CreateTable API.
 //!
-//! Tests that creating a table with `time_nanos` columns in the schema automatically adds the
+//! Tests that creating a table with `time(9)` columns in the schema automatically adds the
 //! `timeNanos-dev` feature to the protocol.
 
 use std::sync::Arc;

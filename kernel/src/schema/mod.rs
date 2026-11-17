@@ -1766,7 +1766,7 @@ pub enum PrimitiveType {
     TimestampNanosNtz,
     #[cfg(feature = "nanosecond-time")]
     /// Time of day with no timezone, as nanoseconds since midnight
-    #[serde(rename = "time_nanos")]
+    #[serde(rename = "time(9)")]
     TimeNanos,
     #[serde(serialize_with = "serialize_decimal", untagged)]
     Decimal(DecimalType),
@@ -1893,7 +1893,7 @@ impl<'de> serde::Deserialize<'de> for PrimitiveType {
             #[cfg(feature = "nanosecond-timestamps")]
             "timestamp_nanos_ntz" => Ok(PrimitiveType::TimestampNanosNtz),
             #[cfg(feature = "nanosecond-time")]
-            "time_nanos" => Ok(PrimitiveType::TimeNanos),
+            "time(9)" => Ok(PrimitiveType::TimeNanos),
             decimal_str if decimal_str.starts_with("decimal(") && decimal_str.ends_with(')') => {
                 // Parse decimal type
                 let mut parts = decimal_str[8..decimal_str.len() - 1].split(',');
@@ -1958,7 +1958,7 @@ impl Display for PrimitiveType {
             #[cfg(feature = "nanosecond-timestamps")]
             PrimitiveType::TimestampNanosNtz => write!(f, "timestamp_nanos_ntz"),
             #[cfg(feature = "nanosecond-time")]
-            PrimitiveType::TimeNanos => write!(f, "time_nanos"),
+            PrimitiveType::TimeNanos => write!(f, "time(9)"),
             PrimitiveType::Decimal(dtype) => {
                 write!(f, "decimal({},{})", dtype.precision(), dtype.scale())
             }
@@ -2358,7 +2358,7 @@ mod tests {
     #[cfg(feature = "nanosecond-time")]
     #[test]
     fn time_nanos_primitive_type_roundtrips_serde_and_display() {
-        let name = "time_nanos";
+        let name = "time(9)";
         assert_eq!(PrimitiveType::TimeNanos.to_string(), name);
         assert_eq!(
             serde_json::to_value(PrimitiveType::TimeNanos).unwrap(),
@@ -2538,6 +2538,12 @@ mod tests {
     #[case("interval second")]
     #[case("interval day")]
     #[case("money")]
+    // only nanosecond precision is supported for parameterized time
+    #[case("time(6)")]
+    #[case("time( 9 )")]
+    #[case("time")]
+    #[case("time_nanos")]
+    #[cfg_attr(not(feature = "nanosecond-time"), case("time(9)"))]
     fn test_unsupported_type_error_message(#[case] unsupported_type: &str) {
         let data = format!(
             r#"{{

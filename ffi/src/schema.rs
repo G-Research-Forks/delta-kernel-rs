@@ -262,7 +262,7 @@ pub struct EngineSchemaVisitor {
         metadata: &CStringMap,
     ),
 
-    /// EXPERIMENTAL. Visit a `time_nanos` (time of day in nanoseconds since midnight, no
+    /// EXPERIMENTAL. Visit a `time(9)` (time of day in nanoseconds since midnight, no
     /// timezone) belonging to the list identified by `sibling_list_id`.
     pub visit_time_nanos: extern "C" fn(
         data: *mut c_void,
