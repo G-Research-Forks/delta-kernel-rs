@@ -15,6 +15,8 @@ use crate::arrow::array::{
 use crate::arrow::compute::kernels::aggregate::{max, max_string, min, min_string};
 #[cfg(feature = "float16")]
 use crate::arrow::datatypes::Float16Type;
+#[cfg(feature = "nanosecond-time")]
+use crate::arrow::datatypes::Time64NanosecondType;
 use crate::arrow::datatypes::{
     ArrowPrimitiveType, DataType, Date32Type, Date64Type, Decimal128Type, Field, Float32Type,
     Float64Type, Int16Type, Int32Type, Int64Type, Int8Type, TimeUnit, TimestampMicrosecondType,
@@ -316,6 +318,11 @@ fn compute_leaf_agg(column: &ArrayRef, agg: Agg) -> DeltaResult<Option<ArrayRef>
         }
         DataType::Timestamp(TimeUnit::Nanosecond, tz) => {
             agg_timestamp::<TimestampNanosecondType>(column, tz.clone(), agg)
+        }
+
+        #[cfg(feature = "nanosecond-time")]
+        DataType::Time64(TimeUnit::Nanosecond) => {
+            agg_primitive::<Time64NanosecondType>(column, agg)
         }
 
         // Decimal type (preserve precision/scale)

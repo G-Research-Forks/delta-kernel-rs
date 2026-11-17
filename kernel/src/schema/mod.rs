@@ -1764,6 +1764,10 @@ pub enum PrimitiveType {
     #[cfg(feature = "nanosecond-timestamps")]
     #[serde(rename = "timestamp_nanos_ntz")]
     TimestampNanosNtz,
+    #[cfg(feature = "nanosecond-time")]
+    /// Time of day with no timezone, as nanoseconds since midnight
+    #[serde(rename = "time_nanos")]
+    TimeNanos,
     #[serde(serialize_with = "serialize_decimal", untagged)]
     Decimal(DecimalType),
 }
@@ -1888,6 +1892,8 @@ impl<'de> serde::Deserialize<'de> for PrimitiveType {
             "timestamp_nanos" => Ok(PrimitiveType::TimestampNanos),
             #[cfg(feature = "nanosecond-timestamps")]
             "timestamp_nanos_ntz" => Ok(PrimitiveType::TimestampNanosNtz),
+            #[cfg(feature = "nanosecond-time")]
+            "time_nanos" => Ok(PrimitiveType::TimeNanos),
             decimal_str if decimal_str.starts_with("decimal(") && decimal_str.ends_with(')') => {
                 // Parse decimal type
                 let mut parts = decimal_str[8..decimal_str.len() - 1].split(',');
@@ -1951,6 +1957,8 @@ impl Display for PrimitiveType {
             PrimitiveType::TimestampNanos => write!(f, "timestamp_nanos"),
             #[cfg(feature = "nanosecond-timestamps")]
             PrimitiveType::TimestampNanosNtz => write!(f, "timestamp_nanos_ntz"),
+            #[cfg(feature = "nanosecond-time")]
+            PrimitiveType::TimeNanos => write!(f, "time_nanos"),
             PrimitiveType::Decimal(dtype) => {
                 write!(f, "decimal({},{})", dtype.precision(), dtype.scale())
             }
@@ -2099,6 +2107,8 @@ impl DataType {
     pub const TIMESTAMP_NANOS: Self = DataType::Primitive(PrimitiveType::TimestampNanos);
     #[cfg(feature = "nanosecond-timestamps")]
     pub const TIMESTAMP_NANOS_NTZ: Self = DataType::Primitive(PrimitiveType::TimestampNanosNtz);
+    #[cfg(feature = "nanosecond-time")]
+    pub const TIME_NANOS: Self = DataType::Primitive(PrimitiveType::TimeNanos);
     /// Create a new decimal type with the given precision and scale.
     pub fn decimal(precision: u8, scale: u8) -> DeltaResult<Self> {
         Ok(PrimitiveType::decimal(precision, scale)?.into())
@@ -2343,6 +2353,19 @@ mod tests {
         );
         let de: PrimitiveType = serde_json::from_value(serde_json::json!(name)).unwrap();
         assert_eq!(de, variant);
+    }
+
+    #[cfg(feature = "nanosecond-time")]
+    #[test]
+    fn time_nanos_primitive_type_roundtrips_serde_and_display() {
+        let name = "time_nanos";
+        assert_eq!(PrimitiveType::TimeNanos.to_string(), name);
+        assert_eq!(
+            serde_json::to_value(PrimitiveType::TimeNanos).unwrap(),
+            serde_json::json!(name)
+        );
+        let de: PrimitiveType = serde_json::from_value(serde_json::json!(name)).unwrap();
+        assert_eq!(de, PrimitiveType::TimeNanos);
     }
 
     fn example_schema_metadata() -> &'static str {

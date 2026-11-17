@@ -26,6 +26,8 @@ pub(crate) use crate::schema::variant_utils::validate_variant_type_feature_suppo
 use crate::schema::{schema_has_invariants, SchemaRef, StructField, StructType};
 #[cfg(feature = "float16")]
 use crate::table_features::validate_float16_feature_support;
+#[cfg(feature = "nanosecond-time")]
+use crate::table_features::validate_time_nanos_feature_support;
 #[cfg(feature = "nanosecond-timestamps")]
 use crate::table_features::validate_timestamp_nanos_feature_support;
 #[cfg(feature = "unsigned-integers")]
@@ -212,6 +214,9 @@ impl TableConfiguration {
 
         #[cfg(feature = "unsigned-integers")]
         validate_unsigned_integer_types_feature_support(&table_config)?;
+
+        #[cfg(feature = "nanosecond-time")]
+        validate_time_nanos_feature_support(&table_config)?;
 
         Ok(table_config)
     }

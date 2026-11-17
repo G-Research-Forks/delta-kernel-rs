@@ -6,6 +6,8 @@ use half::f16;
 use crate::arrow::array::cast::AsArray;
 #[cfg(feature = "float16")]
 use crate::arrow::array::types::Float16Type;
+#[cfg(feature = "nanosecond-time")]
+use crate::arrow::array::types::Time64NanosecondType;
 use crate::arrow::array::types::{
     Date32Type, Decimal128Type, Float32Type, Float64Type, GenericBinaryType, GenericStringType,
     Int16Type, Int32Type, Int64Type, Int8Type, TimestampMicrosecondType, TimestampNanosecondType,
@@ -113,6 +115,13 @@ impl GetData<'_> for PrimitiveArray<TimestampMicrosecondType> {
 
 impl GetData<'_> for PrimitiveArray<TimestampNanosecondType> {
     fn get_timestamp(&self, row_index: usize, _field_name: &str) -> DeltaResult<Option<i64>> {
+        Ok(self.is_valid(row_index).then(|| self.value(row_index)))
+    }
+}
+
+#[cfg(feature = "nanosecond-time")]
+impl GetData<'_> for PrimitiveArray<Time64NanosecondType> {
+    fn get_long(&self, row_index: usize, _field_name: &str) -> DeltaResult<Option<i64>> {
         Ok(self.is_valid(row_index).then(|| self.value(row_index)))
     }
 }
@@ -546,6 +555,15 @@ mod tests {
         assert_eq!(array.get_timestamp(0, "f").unwrap(), Some(1_000_000));
         assert_eq!(array.get_timestamp(1, "f").unwrap(), Some(-1_000_000));
         assert_eq!(array.get_timestamp(2, "f").unwrap(), None);
+    }
+
+    #[cfg(feature = "nanosecond-time")]
+    #[test]
+    fn test_get_time_nanos() {
+        let array =
+            PrimitiveArray::<Time64NanosecondType>::from(vec![Some(47_167_123_456_789), None]);
+        assert_eq!(array.get_long(0, "f").unwrap(), Some(47_167_123_456_789));
+        assert_eq!(array.get_long(1, "f").unwrap(), None);
     }
 
     #[cfg(feature = "nanosecond-timestamps")]

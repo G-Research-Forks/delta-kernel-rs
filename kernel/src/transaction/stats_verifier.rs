@@ -159,6 +159,8 @@ define_column_types!(COL_TYPES_TIMESTAMP_NTZ, DataType::TIMESTAMP_NTZ);
 define_column_types!(COL_TYPES_TIMESTAMP_NANOS, DataType::TIMESTAMP_NANOS);
 #[cfg(feature = "nanosecond-timestamps")]
 define_column_types!(COL_TYPES_TIMESTAMP_NANOS_NTZ, DataType::TIMESTAMP_NANOS_NTZ);
+#[cfg(feature = "nanosecond-time")]
+define_column_types!(COL_TYPES_TIME_NANOS, DataType::TIME_NANOS);
 #[allow(clippy::unwrap_used)]
 static COL_TYPES_DECIMAL: LazyLock<ColumnNamesAndTypes> = LazyLock::new(|| {
     let names = vec![
@@ -206,6 +208,8 @@ fn column_types_for(dt: &DataType) -> DeltaResult<&'static ColumnNamesAndTypes> 
         &DataType::TIMESTAMP_NANOS => Ok(&COL_TYPES_TIMESTAMP_NANOS),
         #[cfg(feature = "nanosecond-timestamps")]
         &DataType::TIMESTAMP_NANOS_NTZ => Ok(&COL_TYPES_TIMESTAMP_NANOS_NTZ),
+        #[cfg(feature = "nanosecond-time")]
+        &DataType::TIME_NANOS => Ok(&COL_TYPES_TIME_NANOS),
         DataType::Primitive(PrimitiveType::Decimal(_)) => Ok(&COL_TYPES_DECIMAL),
         #[cfg(feature = "unsigned-integers")]
         &DataType::UINT8 => Ok(&COL_TYPES_UINT8),
@@ -246,6 +250,8 @@ fn is_stat_present<'b>(
         &DataType::TIMESTAMP_NANOS | &DataType::TIMESTAMP_NANOS_NTZ => {
             Ok(getter.get_timestamp(row_idx, field_name)?.is_some())
         }
+        #[cfg(feature = "nanosecond-time")]
+        &DataType::TIME_NANOS => Ok(getter.get_long(row_idx, field_name)?.is_some()),
         &DataType::STRING => Ok(getter.get_str(row_idx, field_name)?.is_some()),
         &DataType::BINARY => Ok(getter.get_binary(row_idx, field_name)?.is_some()),
         DataType::Primitive(PrimitiveType::Decimal(_)) => {
@@ -386,6 +392,8 @@ mod tests {
     use crate::arrow::array::types::{
         Date32Type, Decimal128Type, Float32Type, Float64Type, Int32Type, TimestampMicrosecondType,
     };
+    #[cfg(feature = "nanosecond-time")]
+    use crate::arrow::array::Time64NanosecondArray;
     #[cfg(feature = "nanosecond-timestamps")]
     use crate::arrow::array::TimestampNanosecondArray;
     use crate::arrow::array::{
@@ -897,6 +905,14 @@ mod tests {
     #[cfg_attr(feature = "nanosecond-timestamps", case::timestamp_nanos_ntz_all_null(
         Arc::new(TimestampNanosecondArray::from(vec![None::<i64>, None, None])) as ArrayRef,
         DataType::TIMESTAMP_NANOS_NTZ,
+    ))]
+    #[cfg_attr(feature = "nanosecond-time", case::time_nanos(
+        Arc::new(Time64NanosecondArray::from(vec![Some(1_000_000i64), Some(2_000_000), Some(3_000_123)])) as ArrayRef,
+        DataType::TIME_NANOS,
+    ))]
+    #[cfg_attr(feature = "nanosecond-time", case::time_nanos_all_null(
+        Arc::new(Time64NanosecondArray::from(vec![None::<i64>, None, None])) as ArrayRef,
+        DataType::TIME_NANOS,
     ))]
     #[case::string(
         Arc::new(StringArray::from(vec![Some("a"), Some("b"), Some("c")])) as ArrayRef,
