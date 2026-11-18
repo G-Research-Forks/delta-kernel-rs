@@ -99,8 +99,8 @@ including nullable columns, so your connector must supply those explicitly. Nest
 and per-row `DEFAULT` requests need separate handling.
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # use std::sync::Arc;
 # use delta_kernel::arrow::array::RecordBatch;
 # use delta_kernel::arrow::datatypes::SchemaRef as ArrowSchemaRef;
@@ -217,7 +217,7 @@ This connector helper accepts your evaluator as a callback. The callback must ev
 SQL with the appropriate SQL semantics and return a value of the declared type:
 
 ```rust
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 use delta_kernel::expressions::Scalar;
 use delta_kernel::schema::{ColumnDefault, DataType};
 use delta_kernel::{KernelResult, KernelError};

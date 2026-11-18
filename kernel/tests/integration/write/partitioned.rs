@@ -18,7 +18,9 @@ use delta_kernel::committer::FileSystemCommitter;
 use delta_kernel::engine::arrow_conversion::TryIntoArrow as _;
 use delta_kernel::engine::arrow_data::ArrowEngineData;
 use delta_kernel::expressions::Scalar;
-use delta_kernel::schema::{schema, schema_ref, DataType, StructField, StructType};
+#[cfg(feature = "nanosecond-timestamps")]
+use delta_kernel::schema::StructField;
+use delta_kernel::schema::{schema, schema_ref, DataType, StructType};
 use delta_kernel::table_features::ColumnMappingMode;
 use delta_kernel::transaction::create_table::create_table;
 use delta_kernel::transaction::data_layout::DataLayout;
