@@ -262,6 +262,16 @@ pub struct EngineSchemaVisitor {
         metadata: &CStringMap,
     ),
 
+    /// EXPERIMENTAL. Visit a `time(9)` (time of day in nanoseconds since midnight, no
+    /// timezone) belonging to the list identified by `sibling_list_id`.
+    pub visit_time_nanos: extern "C" fn(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        name: KernelStringSlice,
+        is_nullable: bool,
+        metadata: &CStringMap,
+    ),
+
     /// Visit a `variant` belonging to the list identified by `sibling_list_id`.
     pub visit_variant: extern "C" fn(
         data: *mut c_void,
@@ -404,6 +414,8 @@ fn visit_schema_impl(schema: &StructType, visitor: &mut EngineSchemaVisitor) -> 
             &DataType::TIMESTAMP_NANOS => call!(visit_timestamp_nanos),
             #[cfg(feature = "nanosecond-timestamps")]
             &DataType::TIMESTAMP_NANOS_NTZ => call!(visit_timestamp_nanos_ntz),
+            #[cfg(feature = "nanosecond-time")]
+            &DataType::TIME_NANOS => call!(visit_time_nanos),
             #[cfg(feature = "unsigned-integers")]
             &DataType::UINT8 => call!(visit_uint8),
             #[cfg(feature = "unsigned-integers")]

@@ -5,6 +5,8 @@ use std::sync::Arc;
 use buoyant_kernel as delta_kernel;
 #[cfg(feature = "float16")]
 use delta_kernel::arrow::array::Float16Array;
+#[cfg(feature = "nanosecond-time")]
+use delta_kernel::arrow::array::Time64NanosecondArray;
 #[cfg(feature = "nanosecond-timestamps")]
 use delta_kernel::arrow::array::TimestampNanosecondArray;
 use delta_kernel::arrow::array::{
@@ -97,6 +99,21 @@ async fn test_append_timestamp_nanos_ntz() -> Result<(), Box<dyn std::error::Err
         "test_table_timestamp_nanos_ntz",
         vec!["timestampNanos", "timestampNtz"],
         Arc::new(TimestampNanosecondArray::from(timestamp_values)),
+    )
+    .await
+}
+
+#[cfg(feature = "nanosecond-time")]
+#[tokio::test]
+async fn test_append_time_nanos() -> Result<(), Box<dyn std::error::Error>> {
+    let time_values = vec![0i64, 47_167_123_456_789, 86_399_999_999_999];
+
+    test_append_round_trip(
+        DataType::TIME_NANOS,
+        "time_nanos",
+        "test_table_time_nanos",
+        vec!["timeNanos-dev"],
+        Arc::new(Time64NanosecondArray::from(time_values)),
     )
     .await
 }

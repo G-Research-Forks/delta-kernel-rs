@@ -427,6 +427,19 @@ pub extern "C" fn visit_expression_literal_timestamp_nanos_ntz(
     wrap_expression(state, Expression::literal(Scalar::TimestampNanosNtz(value)))
 }
 
+/// EXPERIMENTAL. Visit a time of day literal expression 'value' (i64 representing nanoseconds
+/// since midnight, with no timezone).
+///
+/// Only available when the `nanosecond-time` Cargo feature is enabled.
+#[cfg(feature = "nanosecond-time")]
+#[no_mangle]
+pub extern "C" fn visit_expression_literal_time_nanos(
+    state: &mut KernelExpressionVisitorState,
+    value: i64,
+) -> usize {
+    wrap_expression(state, Expression::literal(Scalar::TimeNanos(value)))
+}
+
 /// visit a timestamp_ntz literal expression 'value' (i64 representing microseconds since unix
 /// epoch)
 #[no_mangle]
@@ -540,6 +553,8 @@ pub(crate) enum NullTypeTag {
     Uint32 = 18,
     /// EXPERIMENTAL. Null of type `uint64` (64-bit unsigned integer).
     Uint64 = 19,
+    /// EXPERIMENTAL. Null of type `time(9)` (nanoseconds since midnight, no timezone).
+    TimeNanos = 20,
     /// Sentinel for non-primitive null types (struct, array, map, variant). Emitted by the
     /// kernel-to-engine visitor when the null's type is not a primitive. Engines that receive
     /// this tag should use opaque expressions or a schema visitor to obtain full type details.
@@ -574,6 +589,7 @@ impl TryFrom<u8> for NullTypeTag {
             17 => Ok(Self::Uint16),
             18 => Ok(Self::Uint32),
             19 => Ok(Self::Uint64),
+            20 => Ok(Self::TimeNanos),
             255 => Ok(Self::NonPrimitive),
             other => Err(delta_kernel::Error::generic(format!(
                 "Unrecognized null type tag: {other}"
@@ -606,6 +622,8 @@ impl NullTypeTag {
                 PrimitiveType::TimestampNanos => (Self::TimestampNanos, 0, 0),
                 #[cfg(feature = "nanosecond-timestamps")]
                 PrimitiveType::TimestampNanosNtz => (Self::TimestampNanosNtz, 0, 0),
+                #[cfg(feature = "nanosecond-time")]
+                PrimitiveType::TimeNanos => (Self::TimeNanos, 0, 0),
                 PrimitiveType::Timestamp => (Self::Timestamp, 0, 0),
                 PrimitiveType::TimestampNtz => (Self::TimestampNtz, 0, 0),
                 #[cfg(feature = "unsigned-integers")]
@@ -672,6 +690,12 @@ impl NullTypeTag {
             )),
             #[cfg(feature = "nanosecond-timestamps")]
             Self::TimestampNanosNtz => Ok(DataType::TIMESTAMP_NANOS_NTZ),
+            #[cfg(not(feature = "nanosecond-time"))]
+            Self::TimeNanos => Err(delta_kernel::Error::generic(
+                "`nanosecond-time` Cargo feature not enabled",
+            )),
+            #[cfg(feature = "nanosecond-time")]
+            Self::TimeNanos => Ok(DataType::TIME_NANOS),
             Self::Timestamp => Ok(DataType::TIMESTAMP),
             Self::TimestampNtz => Ok(DataType::TIMESTAMP_NTZ),
             Self::Decimal => Ok(DataType::Primitive(PrimitiveType::decimal(
@@ -986,13 +1010,14 @@ mod tests {
     #[case(17, NullTypeTag::Uint16)]
     #[case(18, NullTypeTag::Uint32)]
     #[case(19, NullTypeTag::Uint64)]
+    #[case(20, NullTypeTag::TimeNanos)]
     #[case(255, NullTypeTag::NonPrimitive)]
     fn try_from_u8_valid(#[case] value: u8, #[case] expected: NullTypeTag) {
         assert_eq!(NullTypeTag::try_from(value).unwrap(), expected);
     }
 
     #[rstest]
-    #[case(20)]
+    #[case(21)]
     #[case(42)]
     #[case(254)]
     fn try_from_u8_invalid(#[case] value: u8) {
@@ -1018,7 +1043,7 @@ mod tests {
     #[test]
     fn visit_null_unrecognized_tag_returns_error() {
         let mut state = KernelExpressionVisitorState::default();
-        assert!(visit_expression_literal_null_impl(&mut state, 20, 0, 0).is_err());
+        assert!(visit_expression_literal_null_impl(&mut state, 21, 0, 0).is_err());
     }
 
     #[test]
@@ -1050,6 +1075,7 @@ mod tests {
     #[cfg_attr(feature = "unsigned-integers", case(DataType::UINT16))]
     #[cfg_attr(feature = "unsigned-integers", case(DataType::UINT32))]
     #[cfg_attr(feature = "unsigned-integers", case(DataType::UINT64))]
+    #[cfg_attr(feature = "nanosecond-time", case(DataType::TIME_NANOS))]
     fn null_type_round_trips_through_tag_encoding(#[case] data_type: DataType) {
         let (tag, precision, scale) = NullTypeTag::from_data_type(&data_type);
         let mut state = KernelExpressionVisitorState::default();

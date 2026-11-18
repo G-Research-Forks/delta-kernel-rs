@@ -111,6 +111,9 @@ pub struct EngineExpressionVisitor {
     /// Visit a 64bit timestamp belonging to the list identified by `sibling_list_id`.
     /// The timestamp is nanosecond precision with no timezone.
     pub visit_literal_timestamp_nanos_ntz: VisitLiteralFn<i64>,
+    /// EXPERIMENTAL. Visit a 64bit time of day belonging to the list identified by
+    /// `sibling_list_id`. The time is nanoseconds since midnight with no timezone.
+    pub visit_literal_time_nanos: VisitLiteralFn<i64>,
     /// Visit a 32bit integer `date` representing days since UNIX epoch 1970-01-01.  The `date`
     /// belongs to the list identified by `sibling_list_id`.
     pub visit_literal_date: VisitLiteralFn<i32>,
@@ -640,6 +643,10 @@ fn visit_expression_scalar(
                 sibling_list_id,
                 *val
             )
+        }
+        #[cfg(feature = "nanosecond-time")]
+        Scalar::TimeNanos(val) => {
+            call!(visitor, visit_literal_time_nanos, sibling_list_id, *val)
         }
         Scalar::Date(val) => call!(visitor, visit_literal_date, sibling_list_id, *val),
         Scalar::Binary(buf) => call!(

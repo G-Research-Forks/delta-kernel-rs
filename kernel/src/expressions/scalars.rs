@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
+#[cfg(feature = "nanosecond-time")]
+use chrono::{NaiveTime, Timelike};
 #[cfg(feature = "float16")]
 use half::f16;
 use itertools::Itertools;
@@ -264,6 +266,9 @@ pub enum Scalar {
     #[cfg(feature = "nanosecond-timestamps")]
     /// Nanosecond precision timestamp, with no timezone.
     TimestampNanosNtz(i64),
+    #[cfg(feature = "nanosecond-time")]
+    /// Time of day with no timezone, as nanoseconds since midnight.
+    TimeNanos(i64),
     /// Date stored as a signed 32bit int days since UNIX epoch 1970-01-01
     Date(i32),
     /// Binary data
@@ -307,6 +312,8 @@ impl Scalar {
             Self::TimestampNanos(_) => DataType::TIMESTAMP_NANOS,
             #[cfg(feature = "nanosecond-timestamps")]
             Self::TimestampNanosNtz(_) => DataType::TIMESTAMP_NANOS_NTZ,
+            #[cfg(feature = "nanosecond-time")]
+            Self::TimeNanos(_) => DataType::TIME_NANOS,
             Self::Date(_) => DataType::DATE,
             Self::Binary(_) => DataType::BINARY,
             Self::Decimal(d) => DataType::from(*d.ty()),
@@ -451,6 +458,8 @@ impl Display for Scalar {
             Self::TimestampNanos(ts) => write!(f, "{ts}"),
             #[cfg(feature = "nanosecond-timestamps")]
             Self::TimestampNanosNtz(ts) => write!(f, "{ts}"),
+            #[cfg(feature = "nanosecond-time")]
+            Self::TimeNanos(nanos) => write!(f, "{nanos}"),
             Self::Date(d) => write!(f, "{d}"),
             Self::Binary(b) => write!(f, "{b:?}"),
             Self::Decimal(d) => match d.scale().cmp(&0) {
@@ -596,6 +605,10 @@ impl Scalar {
             (TimestampNanosNtz(a), TimestampNanosNtz(b)) => a.partial_cmp(b),
             #[cfg(feature = "nanosecond-timestamps")]
             (TimestampNanosNtz(_), _) => None,
+            #[cfg(feature = "nanosecond-time")]
+            (TimeNanos(a), TimeNanos(b)) => a.partial_cmp(b),
+            #[cfg(feature = "nanosecond-time")]
+            (TimeNanos(_), _) => None,
             (Date(a), Date(b)) => a.partial_cmp(b),
             (Date(_), _) => None,
             (Binary(a), Binary(b)) => a.partial_cmp(b),
@@ -936,6 +949,19 @@ impl PrimitiveType {
                     TimestampNanosNtz => Ok(Scalar::TimestampNanosNtz(nanos)),
                     _ => unreachable!(),
                 }
+            }
+            #[cfg(feature = "nanosecond-time")]
+            TimeNanos => {
+                let time = NaiveTime::parse_from_str(raw, "%H:%M:%S%.f")
+                    .map_err(|_| self.parse_error(raw))?;
+                // chrono represents leap seconds with nanosecond() >= 1e9, which has no valid
+                // nanoseconds-since-midnight representation.
+                if time.nanosecond() >= 1_000_000_000 {
+                    return Err(self.parse_error(raw));
+                }
+                let nanos = i64::from(time.num_seconds_from_midnight()) * 1_000_000_000
+                    + i64::from(time.nanosecond());
+                Ok(Scalar::TimeNanos(nanos))
             }
         }
     }
@@ -1431,6 +1457,45 @@ mod tests {
 
         // assert that NULL values are incomparable
         assert!(!null.logical_eq(&null));
+    }
+
+    #[cfg(feature = "nanosecond-time")]
+    #[rstest::rstest]
+    #[case::midnight("00:00:00", 0)]
+    #[case::whole_second("13:06:07", 47_167_000_000_000)]
+    #[case::nanosecond("13:06:07.123456789", 47_167_123_456_789)]
+    #[case::last_nanosecond("23:59:59.999999999", 86_399_999_999_999)]
+    fn test_time_nanos_parse(#[case] raw: &str, #[case] nanos: i64) {
+        let scalar = PrimitiveType::TimeNanos.parse_scalar(raw).unwrap();
+        assert_eq!(scalar, Scalar::TimeNanos(nanos));
+    }
+
+    #[cfg(feature = "nanosecond-time")]
+    #[rstest::rstest]
+    #[case::hour_out_of_range("24:00:00")]
+    #[case::has_date("2011-01-11 13:06:07")]
+    #[case::has_offset("13:06:07Z")]
+    #[case::leap_second_end_of_day("23:59:60")]
+    #[case::leap_second_with_fraction("23:59:60.5")]
+    #[case::leap_second_mid_day("12:34:60")]
+    fn test_time_nanos_parse_fails(#[case] raw: &str) {
+        let result = PrimitiveType::TimeNanos.parse_scalar(raw);
+        assert!(matches!(result, Err(Error::ParseError(..))), "{result:?}");
+    }
+
+    #[cfg(feature = "nanosecond-time")]
+    #[test]
+    fn test_partial_eq_cmp_time_nanos() {
+        test_partial_eq(
+            Scalar::TimeNanos(1),
+            Scalar::TimeNanos(123),
+            DataType::TIME_NANOS,
+        );
+        test_partial_cmp(
+            Scalar::TimeNanos(1),
+            Scalar::TimeNanos(123),
+            DataType::TIME_NANOS,
+        );
     }
 
     #[cfg(feature = "nanosecond-timestamps")]

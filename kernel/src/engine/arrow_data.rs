@@ -7,6 +7,8 @@ use tracing::debug;
 use crate::arrow::array::cast::AsArray;
 #[cfg(feature = "float16")]
 use crate::arrow::array::types::Float16Type;
+#[cfg(feature = "nanosecond-time")]
+use crate::arrow::array::types::Time64NanosecondType;
 #[cfg(feature = "nanosecond-timestamps")]
 use crate::arrow::array::types::TimestampNanosecondType;
 use crate::arrow::array::types::{
@@ -540,6 +542,13 @@ impl ArrowEngineData {
                 col.as_primitive_opt::<TimestampNanosecondType>()
                     .map(|a| a as _)
                     .ok_or("timestamp")
+            }
+            #[cfg(feature = "nanosecond-time")]
+            &DataType::TIME_NANOS => {
+                debug!("Pushing time array for {}", ColumnName::new(path));
+                col.as_primitive_opt::<Time64NanosecondType>()
+                    .map(|a| a as _)
+                    .ok_or("time")
             }
             DataType::Primitive(PrimitiveType::Decimal(_)) => {
                 debug!("Pushing decimal array for {}", ColumnName::new(path));

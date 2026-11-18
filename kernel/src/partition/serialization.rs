@@ -12,6 +12,8 @@
 //!
 //! [`Scalar`]: crate::expressions::Scalar
 
+#[cfg(feature = "nanosecond-time")]
+use chrono::NaiveTime;
 use chrono::{DateTime, NaiveDate, Utc};
 #[cfg(feature = "float16")]
 use half::f16;
@@ -106,6 +108,8 @@ pub fn serialize_partition_value(value: &Scalar) -> DeltaResult<Option<String>> 
         Scalar::TimestampNanos(ns) => Ok(Some(format_timestamp_nanos(*ns)?)),
         #[cfg(feature = "nanosecond-timestamps")]
         Scalar::TimestampNanosNtz(ns) => Ok(Some(format_timestamp_nanos_ntz(*ns)?)),
+        #[cfg(feature = "nanosecond-time")]
+        Scalar::TimeNanos(ns) => Ok(Some(format_time_nanos(*ns)?)),
         Scalar::Timestamp(us) => Ok(Some(format_timestamp(*us)?)),
         Scalar::TimestampNtz(us) => Ok(Some(format_timestamp_ntz(*us)?)),
         Scalar::Decimal(d) => Ok(Some(format_decimal(d))),
@@ -229,6 +233,24 @@ fn format_timestamp_nanos_ntz(nanos: i64) -> DeltaResult<String> {
         .map(|dt| dt.naive_utc().format("%Y-%m-%d %H:%M:%S%.9f").to_string())
 }
 
+#[cfg(feature = "nanosecond-time")]
+/// Formats a time of day (nanoseconds since midnight) as "HH:MM:SS.fffffffff".
+fn format_time_nanos(nanos: i64) -> DeltaResult<String> {
+    const NANOS_PER_SECOND: i64 = 1_000_000_000;
+    u32::try_from(nanos.div_euclid(NANOS_PER_SECOND))
+        .ok()
+        .and_then(|seconds| {
+            let subsecond_nanos = nanos.rem_euclid(NANOS_PER_SECOND) as u32;
+            NaiveTime::from_num_seconds_from_midnight_opt(seconds, subsecond_nanos)
+        })
+        .map(|time| time.format("%H:%M:%S%.9f").to_string())
+        .ok_or_else(|| {
+            Error::generic(format!(
+                "time(9) value {nanos} nanoseconds from midnight is out of range"
+            ))
+        })
+}
+
 /// Formats a timestamp (microseconds since epoch) as ISO 8601: "YYYY-MM-DDTHH:MM:SS.ffffffZ".
 fn format_timestamp(micros: i64) -> DeltaResult<String> {
     micros_to_datetime(micros, "timestamp")
@@ -277,6 +299,8 @@ mod tests {
     use super::*;
     use crate::expressions::{ArrayData, MapData, Scalar, StructData};
     use crate::schema::{ArrayType, DataType, MapType, PrimitiveType, StructField};
+    #[cfg(feature = "nanosecond-time")]
+    use crate::utils::test_utils::assert_result_error_with_message;
 
     // ============================================================================
     // Spark reference: null and empty values
@@ -380,6 +404,30 @@ mod tests {
         assert_eq!(
             serialize_partition_value(&input).unwrap(),
             Some(expected.to_string())
+        );
+    }
+
+    #[cfg(feature = "nanosecond-time")]
+    #[rstest]
+    #[case::midnight(0, "00:00:00.000000000")]
+    #[case::nanosecond(47_167_123_456_789, "13:06:07.123456789")]
+    #[case::last_nanosecond(86_399_999_999_999, "23:59:59.999999999")]
+    fn test_time_nanos_partition_value_roundtrip(#[case] nanos: i64, #[case] expected: &str) {
+        let input = Scalar::TimeNanos(nanos);
+        let serialized = serialize_partition_value(&input).unwrap().unwrap();
+        assert_eq!(serialized, expected);
+        let parsed = PrimitiveType::TimeNanos.parse_scalar(&serialized).unwrap();
+        assert_eq!(input, parsed);
+    }
+
+    #[cfg(feature = "nanosecond-time")]
+    #[rstest]
+    #[case::negative(-1)]
+    #[case::one_day(86_400_000_000_000)]
+    fn test_time_nanos_partition_value_out_of_range(#[case] nanos: i64) {
+        assert_result_error_with_message(
+            serialize_partition_value(&Scalar::TimeNanos(nanos)),
+            "nanoseconds from midnight is out of range",
         );
     }
 

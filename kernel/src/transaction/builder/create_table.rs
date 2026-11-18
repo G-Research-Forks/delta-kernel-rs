@@ -26,6 +26,8 @@ use crate::schema::{
 use crate::table_configuration::TableConfiguration;
 #[cfg(feature = "float16")]
 use crate::table_features::schema_contains_float16;
+#[cfg(feature = "nanosecond-time")]
+use crate::table_features::schema_contains_time_nanos;
 #[cfg(feature = "nanosecond-timestamps")]
 use crate::table_features::schema_contains_timestamp_nanos;
 #[cfg(feature = "unsigned-integers")]
@@ -457,6 +459,19 @@ fn maybe_enable_unsigned_integer_types(
     if schema_contains_unsigned_integers(schema) {
         add_feature_to_lists(
             TableFeature::UnsignedIntegerTypes,
+            &mut validated.reader_features,
+            &mut validated.writer_features,
+        );
+    }
+}
+
+#[cfg(feature = "nanosecond-time")]
+/// Conditionally adds the `timeNanos-dev` feature to the protocol when the schema contains
+/// `time(9)` columns anywhere in the schema tree (top-level, nested structs, arrays, maps).
+fn maybe_enable_time_nanos(schema: &SchemaRef, validated: &mut ValidatedTableProperties) {
+    if schema_contains_time_nanos(schema) {
+        add_feature_to_lists(
+            TableFeature::TimeNanos,
             &mut validated.reader_features,
             &mut validated.writer_features,
         );
@@ -1000,6 +1015,9 @@ impl CreateTableTransactionBuilder {
 
         #[cfg(feature = "unsigned-integers")]
         maybe_enable_unsigned_integer_types(&effective_schema, &mut validated);
+
+        #[cfg(feature = "nanosecond-time")]
+        maybe_enable_time_nanos(&effective_schema, &mut validated);
 
         // Property-driven auto-enablement: check enablement properties
         maybe_auto_enable_property_driven_features(&mut validated);

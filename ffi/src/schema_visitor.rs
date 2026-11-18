@@ -422,6 +422,26 @@ pub unsafe extern "C" fn visit_field_timestamp_nanos(
         .into_extern_result(&allocate_error)
 }
 
+#[cfg(feature = "nanosecond-time")]
+/// EXPERIMENTAL. Visit a `time(9)` field. These fields store a time of day in nanoseconds
+/// since midnight, with no timezone.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_time_nanos(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    visit_field_primitive_impl(state, name_str, PrimitiveType::TimeNanos, nullable)
+        .into_extern_result(&allocate_error)
+}
+
 #[cfg(feature = "nanosecond-timestamps")]
 /// Visit a timestamp_nanos_ntz field. Similar to timestamp_ntz but nanosecond resolution.
 ///
@@ -933,6 +953,8 @@ mod tests {
         #[cfg(feature = "nanosecond-timestamps")]
         let col_timestamp_nanos_ntz =
             visit_field!(timestamp_nanos_ntz, state, "col_timestamp_nanos_ntz", false);
+        #[cfg(feature = "nanosecond-time")]
+        let col_time_nanos = visit_field!(time_nanos, state, "col_time_nanos", false);
         let col_decimal = visit_field!(decimal, state, "col_decimal", 10, 2, false);
 
         // Create array<string>
@@ -981,6 +1003,8 @@ mod tests {
             col_timestamp_nanos,
             #[cfg(feature = "nanosecond-timestamps")]
             col_timestamp_nanos_ntz,
+            #[cfg(feature = "nanosecond-time")]
+            col_time_nanos,
             #[cfg(feature = "float16")]
             col_float16,
             #[cfg(feature = "unsigned-integers")]
@@ -1030,6 +1054,8 @@ mod tests {
             ("col_timestamp_nanos", PrimitiveType::TimestampNanos),
             #[cfg(feature = "nanosecond-timestamps")]
             ("col_timestamp_nanos_ntz", PrimitiveType::TimestampNanosNtz),
+            #[cfg(feature = "nanosecond-time")]
+            ("col_time_nanos", PrimitiveType::TimeNanos),
             #[cfg(feature = "float16")]
             ("col_float16", PrimitiveType::Float16),
             #[cfg(feature = "unsigned-integers")]

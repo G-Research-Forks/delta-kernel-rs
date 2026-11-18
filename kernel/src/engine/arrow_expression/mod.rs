@@ -115,6 +115,8 @@ impl Scalar {
                 // timezone was already set at builder construction time
                 append_val_n_as!(array::TimestampNanosecondBuilder, *val)
             }
+            #[cfg(feature = "nanosecond-time")]
+            TimeNanos(val) => append_val_n_as!(array::Time64NanosecondBuilder, *val),
             Date(val) => append_val_n_as!(array::Date32Builder, *val),
             Binary(val) => append_val_as!(array::BinaryBuilder, val),
             // precision and scale were already set at builder construction time
@@ -207,6 +209,8 @@ impl Scalar {
             DataType::TIMESTAMP_NANOS | DataType::TIMESTAMP_NANOS_NTZ => {
                 append_nulls_as!(array::TimestampNanosecondBuilder)
             }
+            #[cfg(feature = "nanosecond-time")]
+            DataType::TIME_NANOS => append_nulls_as!(array::Time64NanosecondBuilder),
             DataType::DATE => append_nulls_as!(array::Date32Builder),
             DataType::BINARY => append_nulls_as!(array::BinaryBuilder),
             DataType::Primitive(PrimitiveType::Decimal(_)) => {

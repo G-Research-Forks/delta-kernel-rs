@@ -202,6 +202,10 @@ fn extract_min_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar
         (TimestampNanosNtz, Statistics::Int64(s)) => Scalar::TimestampNanosNtz(*s.min_opt()?),
         #[cfg(feature = "nanosecond-timestamps")]
         (TimestampNanosNtz, _) => return None, // TODO: Int96 timestamps
+        #[cfg(feature = "nanosecond-time")]
+        (TimeNanos, Statistics::Int64(s)) => Scalar::TimeNanos(*s.min_opt()?),
+        #[cfg(feature = "nanosecond-time")]
+        (TimeNanos, _) => return None,
         (Timestamp, Statistics::Int64(s)) => Scalar::Timestamp(*s.min_opt()?),
         (Timestamp, _) => return None, // TODO: Int96 timestamps
         (TimestampNtz, Statistics::Int64(s)) => Scalar::TimestampNtz(*s.min_opt()?),
@@ -275,6 +279,10 @@ fn extract_max_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar
         (TimestampNanosNtz, Statistics::Int64(s)) => Scalar::TimestampNanosNtz(*s.max_opt()?),
         #[cfg(feature = "nanosecond-timestamps")]
         (TimestampNanosNtz, _) => return None, // TODO: Int96 timestamps
+        #[cfg(feature = "nanosecond-time")]
+        (TimeNanos, Statistics::Int64(s)) => Scalar::TimeNanos(*s.max_opt()?),
+        #[cfg(feature = "nanosecond-time")]
+        (TimeNanos, _) => return None,
         (Timestamp, Statistics::Int64(s)) => Scalar::Timestamp(*s.max_opt()?),
         (Timestamp, _) => return None, // TODO: Int96 timestamps
         (TimestampNtz, Statistics::Int64(s)) => Scalar::TimestampNtz(*s.max_opt()?),
