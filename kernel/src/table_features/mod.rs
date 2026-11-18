@@ -17,6 +17,8 @@ use delta_kernel_derive::internal_api;
 pub(crate) use float16::{schema_contains_float16, validate_float16_feature_support};
 #[cfg(feature = "geo-type-in-dev")]
 pub(crate) use geospatial::validate_geospatial_feature_support;
+#[cfg(feature = "nanosecond-time")]
+pub(crate) use time_nanos::{schema_contains_time_nanos, validate_time_nanos_feature_support};
 #[cfg(feature = "nanosecond-timestamps")]
 pub(crate) use timestamp_nanos::{
     schema_contains_timestamp_nanos, validate_timestamp_nanos_feature_support,
@@ -53,6 +55,8 @@ mod float16;
 #[cfg(feature = "geo-type-in-dev")]
 mod geospatial;
 mod iceberg_compat;
+#[cfg(feature = "nanosecond-time")]
+mod time_nanos;
 mod timestamp_ntz;
 #[cfg(feature = "unsigned-integers")]
 mod unsigned_integers;
@@ -227,6 +231,12 @@ pub(crate) enum TableFeature {
     #[strum(serialize = "unsignedIntegerTypes-dev")]
     #[serde(rename = "unsignedIntegerTypes-dev")]
     UnsignedIntegerTypes,
+    #[cfg(feature = "nanosecond-time")]
+    /// Time of day in nanoseconds column type. Experimental: serializes to `timeNanos-dev` per
+    /// the Delta RFC process for in-development features.
+    #[strum(serialize = "timeNanos-dev")]
+    #[serde(rename = "timeNanos-dev")]
+    TimeNanos,
 
     #[serde(untagged)]
     #[strum(default)]
@@ -813,6 +823,15 @@ static UNSIGNED_INTEGER_TYPES_INFO: FeatureInfo = FeatureInfo {
     enablement_check: EnablementCheck::AlwaysIfSupported,
 };
 
+#[cfg(feature = "nanosecond-time")]
+static TIME_NANOS_INFO: FeatureInfo = FeatureInfo {
+    feature_type: FeatureType::ReaderWriter,
+    min_legacy_version: None,
+    feature_requirements: &[],
+    kernel_support: KernelSupport::Supported,
+    enablement_check: EnablementCheck::AlwaysIfSupported,
+};
+
 /// By definition, kernel cannot know how to handle unknown features and must assume they're always
 /// enabled if supported in protocol. However, the read path ignores all writer-only features,
 /// including unknown ones. Unknown features are never inferred from legacy protocol versions.
@@ -853,6 +872,8 @@ impl TableFeature {
             | TableFeature::GeospatialType => FeatureType::ReaderWriter,
             #[cfg(feature = "unsigned-integers")]
             TableFeature::UnsignedIntegerTypes => FeatureType::ReaderWriter,
+            #[cfg(feature = "nanosecond-time")]
+            TableFeature::TimeNanos => FeatureType::ReaderWriter,
             #[cfg(feature = "float16")]
             TableFeature::Float16 => FeatureType::ReaderWriter,
             TableFeature::AppendOnly
@@ -933,6 +954,8 @@ impl TableFeature {
             TableFeature::ParquetEncryptionDev => &PARQUET_ENCRYPTION_DEV_INFO,
             #[cfg(feature = "unsigned-integers")]
             TableFeature::UnsignedIntegerTypes => &UNSIGNED_INTEGER_TYPES_INFO,
+            #[cfg(feature = "nanosecond-time")]
+            TableFeature::TimeNanos => &TIME_NANOS_INFO,
 
             // Unknown features: not supported by kernel, no legacy version inference.
             TableFeature::Unknown(_) => &UNKNOWN_FEATURE_INFO,
@@ -1334,6 +1357,8 @@ mod tests {
                 TableFeature::ParquetEncryptionDev => "parquetEncryption-dev",
                 #[cfg(feature = "unsigned-integers")]
                 TableFeature::UnsignedIntegerTypes => "unsignedIntegerTypes-dev",
+                #[cfg(feature = "nanosecond-time")]
+                TableFeature::TimeNanos => "timeNanos-dev",
                 TableFeature::Unknown(_) => continue, // tested in test_unknown_features
             };
 

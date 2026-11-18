@@ -565,6 +565,40 @@ fn visit_expression_literal_timestamp_nanos_ntz_impl(
     ))
 }
 
+/// EXPERIMENTAL. Visit a time of day literal expression 'value' (i64 representing nanoseconds
+/// since midnight, with no timezone).
+///
+/// Returns an error if kernel was not built with the `nanosecond-time` feature.
+#[no_mangle]
+pub extern "C" fn visit_expression_literal_time_nanos(
+    state: &mut KernelExpressionVisitorState,
+    value: i64,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    // SAFETY: The allocate_error function pointer is provided by the engine and assumed valid.
+    unsafe {
+        visit_expression_literal_time_nanos_impl(state, value).into_extern_result(&allocate_error)
+    }
+}
+
+#[cfg(feature = "nanosecond-time")]
+fn visit_expression_literal_time_nanos_impl(
+    state: &mut KernelExpressionVisitorState,
+    value: i64,
+) -> KernelResult<usize> {
+    Ok(wrap_expression(state, lit(Scalar::TimeNanos(value))))
+}
+
+#[cfg(not(feature = "nanosecond-time"))]
+fn visit_expression_literal_time_nanos_impl(
+    _state: &mut KernelExpressionVisitorState,
+    _value: i64,
+) -> KernelResult<usize> {
+    Err(delta_kernel::KernelError::unsupported(
+        "`nanosecond-time` feature not enabled in delta-kernel",
+    ))
+}
+
 /// visit a timestamp_ntz literal expression 'value' (i64 representing microseconds since unix
 /// epoch)
 #[no_mangle]
@@ -684,8 +718,8 @@ pub(crate) enum NullTypeTag {
     IntervalYearMonth = 13,
     /// Null of type `interval day to second` (signed microsecond duration).
     IntervalDayTime = 14,
-    // Deliberately not feature gated, so timestamp_nanos, float16 and unsigned integer tag
-    // numbers are reserved even when the features are disabled.
+    // Deliberately not feature gated, so the tag numbers of experimental types are reserved even
+    // when their features are disabled.
     /// EXPERIMENTAL. Null of type `timestamp_nanos` (nanoseconds since epoch, UTC-adjusted).
     TimestampNanos = 15,
     /// EXPERIMENTAL. Null of type `timestamp_nanos_ntz` (nanoseconds since epoch, no timezone).
@@ -700,6 +734,8 @@ pub(crate) enum NullTypeTag {
     Uint32 = 20,
     /// EXPERIMENTAL. Null of type `uint64` (64-bit unsigned integer).
     Uint64 = 21,
+    /// EXPERIMENTAL. Null of type `time(9)` (nanoseconds since midnight, no timezone).
+    TimeNanos = 22,
     /// Sentinel for non-primitive null types (struct, array, map, variant) and void. Emitted by
     /// the kernel-to-engine visitor when the null's type cannot be reconstructed from a compact
     /// tag. Engines that receive this tag should use opaque expressions or a schema visitor to
@@ -737,6 +773,7 @@ impl TryFrom<u8> for NullTypeTag {
             19 => Ok(Self::Uint16),
             20 => Ok(Self::Uint32),
             21 => Ok(Self::Uint64),
+            22 => Ok(Self::TimeNanos),
             255 => Ok(Self::NonPrimitive),
             other => Err(delta_kernel::KernelError::generic(format!(
                 "Unrecognized null type tag: {other}"
@@ -769,6 +806,8 @@ impl NullTypeTag {
                 PrimitiveType::TimestampNanos => (Self::TimestampNanos, 0, 0),
                 #[cfg(feature = "nanosecond-timestamps")]
                 PrimitiveType::TimestampNanosNtz => (Self::TimestampNanosNtz, 0, 0),
+                #[cfg(feature = "nanosecond-time")]
+                PrimitiveType::TimeNanos => (Self::TimeNanos, 0, 0),
                 PrimitiveType::Timestamp => (Self::Timestamp, 0, 0),
                 PrimitiveType::TimestampNtz => (Self::TimestampNtz, 0, 0),
                 PrimitiveType::IntervalYearMonth => (Self::IntervalYearMonth, 0, 0),
@@ -850,6 +889,12 @@ impl NullTypeTag {
             )),
             #[cfg(feature = "nanosecond-timestamps")]
             Self::TimestampNanosNtz => Ok(DataType::TIMESTAMP_NANOS_NTZ),
+            #[cfg(not(feature = "nanosecond-time"))]
+            Self::TimeNanos => Err(delta_kernel::KernelError::generic(
+                "`nanosecond-time` Cargo feature not enabled",
+            )),
+            #[cfg(feature = "nanosecond-time")]
+            Self::TimeNanos => Ok(DataType::TIME_NANOS),
             Self::Timestamp => Ok(DataType::TIMESTAMP),
             Self::TimestampNtz => Ok(DataType::TIMESTAMP_NTZ),
             Self::IntervalYearMonth => Ok(DataType::INTERVAL_YEAR_MONTH),
@@ -1324,13 +1369,14 @@ mod tests {
     #[case(19, NullTypeTag::Uint16)]
     #[case(20, NullTypeTag::Uint32)]
     #[case(21, NullTypeTag::Uint64)]
+    #[case(22, NullTypeTag::TimeNanos)]
     #[case(255, NullTypeTag::NonPrimitive)]
     fn try_from_u8_valid(#[case] value: u8, #[case] expected: NullTypeTag) {
         assert_eq!(NullTypeTag::try_from(value).unwrap(), expected);
     }
 
     #[rstest]
-    #[case(22)]
+    #[case(23)]
     #[case(42)]
     #[case(254)]
     fn try_from_u8_invalid(#[case] value: u8) {
@@ -1356,7 +1402,7 @@ mod tests {
     #[test]
     fn visit_null_unrecognized_tag_returns_error() {
         let mut state = KernelExpressionVisitorState::default();
-        assert!(visit_expression_literal_null_impl(&mut state, 22, 0, 0).is_err());
+        assert!(visit_expression_literal_null_impl(&mut state, 23, 0, 0).is_err());
     }
 
     #[test]
@@ -1390,6 +1436,7 @@ mod tests {
     #[cfg_attr(feature = "unsigned-integers", case(DataType::UINT16))]
     #[cfg_attr(feature = "unsigned-integers", case(DataType::UINT32))]
     #[cfg_attr(feature = "unsigned-integers", case(DataType::UINT64))]
+    #[cfg_attr(feature = "nanosecond-time", case(DataType::TIME_NANOS))]
     fn null_type_round_trips_through_tag_encoding(#[case] data_type: DataType) {
         let (tag, precision, scale) = NullTypeTag::from_data_type(&data_type);
         let mut state = KernelExpressionVisitorState::default();

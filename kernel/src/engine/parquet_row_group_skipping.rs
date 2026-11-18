@@ -217,6 +217,10 @@ fn extract_min_scalar(data_type: &DataType, column: &ColumnChunkMetaData) -> Opt
         ),
         #[cfg(feature = "nanosecond-timestamps")]
         (TimestampNanosNtz, _) => return None,
+        #[cfg(feature = "nanosecond-time")]
+        (TimeNanos, Statistics::Int64(s)) => Scalar::TimeNanos(*s.min_opt()?),
+        #[cfg(feature = "nanosecond-time")]
+        (TimeNanos, _) => return None,
         (Timestamp, Statistics::Int64(s)) => Scalar::Timestamp(timestamp_stat_as_micros(
             *s.min_opt()?,
             column.column_descr(),
@@ -307,6 +311,10 @@ fn extract_max_scalar(data_type: &DataType, column: &ColumnChunkMetaData) -> Opt
         ),
         #[cfg(feature = "nanosecond-timestamps")]
         (TimestampNanosNtz, _) => return None,
+        #[cfg(feature = "nanosecond-time")]
+        (TimeNanos, Statistics::Int64(s)) => Scalar::TimeNanos(*s.max_opt()?),
+        #[cfg(feature = "nanosecond-time")]
+        (TimeNanos, _) => return None,
         (Timestamp, Statistics::Int64(s)) => Scalar::Timestamp(timestamp_stat_as_micros(
             *s.max_opt()?,
             column.column_descr(),

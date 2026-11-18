@@ -1999,6 +1999,10 @@ pub enum PrimitiveType {
     /// variant above, the serde rename is the multi-word `schemaString` type-name string.
     #[serde(rename = "interval day to second")]
     IntervalDayTime,
+    #[cfg(feature = "nanosecond-time")]
+    /// Time of day with no timezone, as nanoseconds since midnight
+    #[serde(rename = "time(9)")]
+    TimeNanos,
     #[from]
     #[serde(serialize_with = "serialize_decimal", untagged)]
     Decimal(DecimalType),
@@ -2236,6 +2240,8 @@ impl<'de> serde::Deserialize<'de> for PrimitiveType {
             s if s.starts_with("interval ") => {
                 normalize_interval_type(s).ok_or_else(|| unsupported_delta_type_error(s))
             }
+            #[cfg(feature = "nanosecond-time")]
+            "time(9)" => Ok(PrimitiveType::TimeNanos),
             decimal_str if decimal_str.starts_with("decimal(") && decimal_str.ends_with(')') => {
                 // Parse decimal type
                 let mut parts = decimal_str[8..decimal_str.len() - 1].split(',');
@@ -2329,6 +2335,8 @@ impl Display for PrimitiveType {
             PrimitiveType::TimestampNanosNtz => write!(f, "timestamp_nanos_ntz"),
             PrimitiveType::IntervalYearMonth => write!(f, "interval year to month"),
             PrimitiveType::IntervalDayTime => write!(f, "interval day to second"),
+            #[cfg(feature = "nanosecond-time")]
+            PrimitiveType::TimeNanos => write!(f, "time(9)"),
             PrimitiveType::Decimal(dtype) => {
                 write!(f, "decimal({},{})", dtype.precision(), dtype.scale())
             }
@@ -2545,6 +2553,8 @@ impl DataType {
         }
     }
 
+    #[cfg(feature = "nanosecond-time")]
+    pub const TIME_NANOS: Self = DataType::Primitive(PrimitiveType::TimeNanos);
     /// Create a new decimal type with the given precision and scale.
     pub fn decimal(precision: u8, scale: u8) -> KernelResult<Self> {
         Ok(PrimitiveType::decimal(precision, scale)?.into())
@@ -2972,6 +2982,19 @@ mod tests {
         assert_eq!(de, variant);
     }
 
+    #[cfg(feature = "nanosecond-time")]
+    #[test]
+    fn time_nanos_primitive_type_roundtrips_serde_and_display() {
+        let name = "time(9)";
+        assert_eq!(PrimitiveType::TimeNanos.to_string(), name);
+        assert_eq!(
+            serde_json::to_value(PrimitiveType::TimeNanos).unwrap(),
+            serde_json::json!(name)
+        );
+        let de: PrimitiveType = serde_json::from_value(serde_json::json!(name)).unwrap();
+        assert_eq!(de, PrimitiveType::TimeNanos);
+    }
+
     fn example_schema_metadata() -> &'static str {
         r#"
             {
@@ -3198,6 +3221,12 @@ mod tests {
     #[case("interval minute to minute")]
     // too many fields
     #[case("interval year to month to year")]
+    // only nanosecond precision is supported for parameterized time
+    #[case("time(6)")]
+    #[case("time( 9 )")]
+    #[case("time")]
+    #[case("time_nanos")]
+    #[cfg_attr(not(feature = "nanosecond-time"), case("time(9)"))]
     fn test_unsupported_type_error_message(#[case] unsupported_type: &str) {
         let data = format!(
             r#"{{

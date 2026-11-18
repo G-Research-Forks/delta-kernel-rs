@@ -17,6 +17,8 @@ mod tests {
         Array, ArrayRef, BinaryArray, BooleanArray, Int16Array, Int64Array, Int8Array,
         LargeStringArray, PrimitiveArray, RecordBatch, StringArray, StringViewArray, StructArray,
     };
+    #[cfg(feature = "nanosecond-time")]
+    use crate::arrow::array::Time64NanosecondArray;
     #[cfg(feature = "nanosecond-timestamps")]
     use crate::arrow::array::TimestampNanosecondArray;
     use delta_kernel::arrow::datatypes::{
@@ -532,6 +534,14 @@ mod tests {
     #[cfg_attr(feature = "nanosecond-timestamps", case::timestamp_nanos_ntz_all_null(
         Arc::new(TimestampNanosecondArray::from(vec![None::<i64>, None, None])) as ArrayRef,
         DataType::TIMESTAMP_NANOS_NTZ,
+    ))]
+    #[cfg_attr(feature = "nanosecond-time", case::time_nanos(
+        Arc::new(Time64NanosecondArray::from(vec![Some(1_000_000i64), Some(2_000_000), Some(3_000_123)])) as ArrayRef,
+        DataType::TIME_NANOS,
+    ))]
+    #[cfg_attr(feature = "nanosecond-time", case::time_nanos_all_null(
+        Arc::new(Time64NanosecondArray::from(vec![None::<i64>, None, None])) as ArrayRef,
+        DataType::TIME_NANOS,
     ))]
     #[case::string(
         Arc::new(StringArray::from(vec![Some("a"), Some("b"), Some("c")])) as ArrayRef,

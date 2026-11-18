@@ -360,6 +360,16 @@ pub struct EngineSchemaVisitor {
         is_nullable: bool,
         metadata: &CMetadataMap,
     ),
+
+    /// EXPERIMENTAL. Visit a `time(9)` (time of day in nanoseconds since midnight, no
+    /// timezone) belonging to the list identified by `sibling_list_id`.
+    pub visit_time_nanos: extern "C" fn(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        name: KernelStringSlice,
+        is_nullable: bool,
+        metadata: &CMetadataMap,
+    ),
 }
 
 /// Visit the given `schema` using the provided `visitor`. See the documentation of
@@ -547,6 +557,8 @@ fn visit_schema_impl(schema: &StructType, visitor: &mut EngineSchemaVisitor) -> 
                     kernel_string_slice!(algorithm)
                 )
             }
+            #[cfg(feature = "nanosecond-time")]
+            &DataType::TIME_NANOS => call!(visit_time_nanos),
             #[cfg(feature = "unsigned-integers")]
             &DataType::UINT8 => call!(visit_uint8),
             #[cfg(feature = "unsigned-integers")]
@@ -752,6 +764,7 @@ mod tests {
     visit_simple_type!(visit_uint16, "uint16");
     visit_simple_type!(visit_uint32, "uint32");
     visit_simple_type!(visit_uint64, "uint64");
+    visit_simple_type!(visit_time_nanos, "time(9)");
     visit_simple_type!(visit_interval_year_month, "interval year to month");
     visit_simple_type!(visit_interval_day_time, "interval day to second");
     visit_simple_type!(visit_void, "void");
@@ -833,6 +846,7 @@ mod tests {
             visit_uint16,
             visit_uint32,
             visit_uint64,
+            visit_time_nanos,
         }
     }
 

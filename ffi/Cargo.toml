@@ -71,6 +71,9 @@ float16 = ["dep:half", "delta_kernel/float16", "test_utils/float16"]
 # Experimental feature adding unsigned integer primitive types:
 unsigned-integers = ["delta_kernel/unsigned-integers", "test_utils/unsigned-integers"]
 
+# Experimental feature adding the time of day in nanoseconds primitive type:
+nanosecond-time = ["delta_kernel/nanosecond-time", "test_utils/nanosecond-time"]
+
 # Internal feature flag with the shared bits between default-engine-native-tls and
 # default-engine-rustls. Enable one of those two on the FFI crate instead to also pick a TLS backend.
 default-engine-base = ["delta_kernel/default-engine-base", "dep:delta_kernel_default_engine"]

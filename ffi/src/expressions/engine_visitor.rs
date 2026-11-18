@@ -302,6 +302,9 @@ pub struct EngineExpressionVisitor {
     /// EXPERIMENTAL. Visit a 64bit unsigned `uint64` belonging to the list identified by
     /// `sibling_list_id`.
     pub visit_literal_uint64: VisitLiteralFn<u64>,
+    /// EXPERIMENTAL. Visit a 64bit time of day belonging to the list identified by
+    /// `sibling_list_id`. The time is nanoseconds since midnight with no timezone.
+    pub visit_literal_time_nanos: VisitLiteralFn<i64>,
 }
 
 /// Visit the expression of the passed [`SharedExpression`] Handle using the provided `visitor`.
@@ -639,6 +642,10 @@ fn visit_expression_scalar(
                 sibling_list_id,
                 *val
             )
+        }
+        #[cfg(feature = "nanosecond-time")]
+        Scalar::TimeNanos(val) => {
+            call!(visitor, visit_literal_time_nanos, sibling_list_id, *val)
         }
         Scalar::Date(val) => call!(visitor, visit_literal_date, sibling_list_id, *val),
         Scalar::Binary(buf) => call!(
@@ -1126,6 +1133,7 @@ mod tests {
             visit_literal_uint16,
             visit_literal_uint32,
             visit_literal_uint64,
+            visit_literal_time_nanos: ignore_i64,
             visit_literal_date: ignore_i32,
             visit_literal_interval_year_month,
             visit_literal_interval_day_time,

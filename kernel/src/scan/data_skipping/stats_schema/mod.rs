@@ -423,6 +423,11 @@ pub(crate) fn is_skipping_eligible_datatype(data_type: &PrimitiveType) -> bool {
     #[cfg(not(feature = "nanosecond-timestamps"))]
     let is_nanos = false;
 
+    #[cfg(not(feature = "nanosecond-time"))]
+    let is_time_nanos = false;
+    #[cfg(feature = "nanosecond-time")]
+    let is_time_nanos = data_type == &PrimitiveType::TimeNanos;
+
     #[cfg(not(feature = "unsigned-integers"))]
     let is_unsigned = false;
     #[cfg(feature = "unsigned-integers")]
@@ -450,6 +455,7 @@ pub(crate) fn is_skipping_eligible_datatype(data_type: &PrimitiveType) -> bool {
     ) || is_float16
         || is_nanos
         || is_unsigned
+        || is_time_nanos
 }
 
 #[cfg(test)]

@@ -51,6 +51,7 @@ enum LitType {
   TimestampNtz,
   TimestampNanos,
   TimestampNanosNtz,
+  TimeNanos,
   Date,
   IntervalYearMonth,
   IntervalDayTime,
@@ -267,6 +268,7 @@ DEFINE_SIMPLE_SCALAR(
     TimestampNanosNtz,
     int64_t,
     long_data);
+DEFINE_SIMPLE_SCALAR(visit_expr_time_nanos_literal, TimeNanos, int64_t, long_data);
 DEFINE_SIMPLE_SCALAR(visit_expr_date_literal, Date, int32_t, integer_data);
 DEFINE_SIMPLE_SCALAR(
     visit_expr_interval_year_month_literal,
@@ -552,6 +554,7 @@ ExpressionItemList construct_expression(SharedExpression* expression) {
     .visit_literal_timestamp_ntz = visit_expr_timestamp_ntz_literal,
     .visit_literal_timestamp_nanos = visit_expr_timestamp_nanos_literal,
     .visit_literal_timestamp_nanos_ntz = visit_expr_timestamp_nanos_ntz_literal,
+    .visit_literal_time_nanos = visit_expr_time_nanos_literal,
     .visit_literal_date = visit_expr_date_literal,
     .visit_literal_interval_year_month = visit_expr_interval_year_month_literal,
     .visit_literal_interval_day_time = visit_expr_interval_day_time_literal,
@@ -612,6 +615,7 @@ ExpressionItemList construct_predicate(SharedPredicate* predicate) {
     .visit_literal_timestamp_ntz = visit_expr_timestamp_ntz_literal,
     .visit_literal_timestamp_nanos = visit_expr_timestamp_nanos_literal,
     .visit_literal_timestamp_nanos_ntz = visit_expr_timestamp_nanos_ntz_literal,
+    .visit_literal_time_nanos = visit_expr_time_nanos_literal,
     .visit_literal_date = visit_expr_date_literal,
     .visit_literal_interval_year_month = visit_expr_interval_year_month_literal,
     .visit_literal_interval_day_time = visit_expr_interval_day_time_literal,
@@ -744,6 +748,7 @@ void free_expression_item(ExpressionItem ref) {
         case TimestampNtz:
         case TimestampNanos:
         case TimestampNanosNtz:
+        case TimeNanos:
         case Date:
         case IntervalYearMonth:
         case IntervalDayTime:
