@@ -2018,24 +2018,26 @@ impl PrimitiveType {
     /// - Float widening: float -> double (Delta protocol type widening)
     /// - Timestamp interchangeability: Timestamp <-> TimestampNtz (both are i64 microseconds since
     ///   epoch, differing only in timezone semantics; this is a physical read accommodation, not a
-    ///   Delta protocol type widening rule)
+    ///   Delta protocol type widening rule). Similarly for TimestampNanos <-> TimestampNanosNtz.
     #[internal_api]
     pub(crate) fn can_widen_to(&self, target: &Self) -> bool {
         use PrimitiveType::*;
-        matches!(
-            (self, target),
+        match (self, target) {
             // Integer widening: smaller types can be read as larger ones
             (Byte, Short | Integer | Long)
-                | (Short, Integer | Long)
-                | (Integer, Long)
-                // Float widening: float can be read as double
-                | (Float, Double)
-                // Timestamp equivalence: both are i64 microseconds since epoch, differing only
-                // in timezone semantics. The parquet representation is identical, so reading
-                // one as the other is safe at the data layer.
-                | (Timestamp, TimestampNtz)
-                | (TimestampNtz, Timestamp)
-        )
+            | (Short, Integer | Long)
+            | (Integer, Long)
+            // Float widening: float can be read as double
+            | (Float, Double)
+            // Timestamp equivalence: both are times since epoch at the same precision,
+            // differing only in timezone semantics. The parquet representation is identical, so
+            // reading one as the other is safe at the data layer.
+            | (Timestamp, TimestampNtz)
+            | (TimestampNtz, Timestamp) => true,
+            #[cfg(feature = "nanosecond-timestamps")]
+            (TimestampNanos, TimestampNanosNtz) | (TimestampNanosNtz, TimestampNanos) => true,
+            _ => false,
+        }
     }
 
     /// Returns `true` if `self` can back `target` in the given checkpoint field.
@@ -2043,6 +2045,8 @@ impl PrimitiveType {
     /// Specifically:
     /// - Integer -> Date (int32 stored without DATE annotation)
     /// - Long -> Timestamp/TimestampNtz (int64 stored without TIMESTAMP annotation)
+    /// - TimestampNanos/TimestampNanosNtz -> Timestamp/TimestampNtz (nanosecond or INT96 encoding,
+    ///   which Arrow reads as nanoseconds; microsecond values convert exactly)
     /// - Binary -> Geometry (statistics only; the engine validates and decodes the WKB bounds)
     ///
     /// These are **not** Delta protocol type widening rules and must not be used outside of
@@ -2058,6 +2062,12 @@ impl PrimitiveType {
         match (self, target, kind) {
             (Self::Integer, Self::Date, _)
             | (Self::Long, Self::Timestamp | Self::TimestampNtz, _) => true,
+            #[cfg(feature = "nanosecond-timestamps")]
+            (
+                Self::TimestampNanos | Self::TimestampNanosNtz,
+                Self::Timestamp | Self::TimestampNtz,
+                _,
+            ) => true,
             #[cfg(feature = "geo-type-in-dev")]
             (Self::Binary, Self::Geometry(_), CheckpointFieldKind::Stats) => true,
             _ => false,

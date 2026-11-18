@@ -15,7 +15,7 @@ use delta_kernel::table_features::{
     TABLE_FEATURES_MIN_WRITER_VERSION,
 };
 use delta_kernel::transaction::create_table::create_table;
-use delta_kernel::KernelResult as DeltaResult;
+use delta_kernel::KernelResult;
 use test_utils::{
     cm_properties, multiple_nanots_ntz_schema, multiple_nanots_schema, nested_nanots_ntz_schema,
     nested_nanots_schema, test_table_setup, top_level_nanots_ntz_schema, top_level_nanots_schema,
@@ -57,7 +57,7 @@ fn test_create_table_with_timestamp_nanos(
     )]
     schema: Arc<StructType>,
     #[values("none", "name", "id")] cm_mode: &str,
-) -> DeltaResult<()> {
+) -> KernelResult<()> {
     let (_temp_dir, table_path, engine) = test_table_setup()?;
 
     let _ = create_table(&table_path, schema.clone(), "Test/1.0", true)
@@ -97,7 +97,7 @@ fn test_create_table_with_timestamp_nanos(
 
 /// A schema without TimestampNanos columns should not add the timestampNanos feature.
 #[test]
-fn test_create_table_no_timestamp_nanos_no_feature() -> DeltaResult<()> {
+fn test_create_table_no_timestamp_nanos_no_feature() -> KernelResult<()> {
     let (_temp_dir, table_path, engine) = test_table_setup()?;
 
     let schema = Arc::new(StructType::try_new(vec![
@@ -125,7 +125,7 @@ fn test_create_table_no_timestamp_nanos_no_feature() -> DeltaResult<()> {
 #[rstest::rstest]
 fn test_create_table_timestamp_nanos_and_variant(
     #[values(DataType::TIMESTAMP_NANOS, DataType::TIMESTAMP_NANOS_NTZ)] ts_type: DataType,
-) -> DeltaResult<()> {
+) -> KernelResult<()> {
     let (_temp_dir, table_path, engine) = test_table_setup()?;
 
     let schema = Arc::new(StructType::new_unchecked(vec![
@@ -154,6 +154,54 @@ fn test_create_table_timestamp_nanos_and_variant(
         table_config.is_feature_supported(&TableFeature::VariantType),
         "variantType feature should be supported"
     );
+
+    Ok(())
+}
+
+/// A schema with both TimestampNtz and nanosecond timestamp columns results in the `timestampNtz`
+/// feature only being added once.
+#[rstest::rstest]
+fn test_create_table_timestamp_nanos_with_timestamp_ntz_column_no_duplicate_features(
+    #[values(DataType::TIMESTAMP_NANOS, DataType::TIMESTAMP_NANOS_NTZ)] nanos_type: DataType,
+) -> KernelResult<()> {
+    let (_temp_dir, table_path, engine) = test_table_setup()?;
+
+    let schema = Arc::new(StructType::try_new(vec![
+        StructField::not_null("id", DataType::INTEGER),
+        StructField::nullable("ts_ntz", DataType::TIMESTAMP_NTZ),
+        StructField::nullable("ts_nanos", nanos_type),
+    ])?);
+
+    let _ = create_table(&table_path, schema, "Test/1.0", true)
+        .build(engine.as_ref(), Box::new(FileSystemCommitter::new()))?
+        .commit(engine.as_ref())?;
+
+    let table_url = delta_kernel::try_parse_uri(&table_path)?;
+    let snapshot = Snapshot::builder_for(table_url).build(engine.as_ref())?;
+    assert_timestamp_nanos_protocol(&snapshot);
+
+    let protocol = snapshot.table_configuration().protocol();
+    let reader_features = protocol
+        .reader_features()
+        .expect("reader features should be present");
+    let writer_features = protocol
+        .writer_features()
+        .expect("writer features should be present");
+    for feature in [
+        TableFeature::TimestampWithoutTimezone,
+        TableFeature::TimestampNanos,
+    ] {
+        for (list_name, features) in [
+            ("readerFeatures", reader_features),
+            ("writerFeatures", writer_features),
+        ] {
+            let count = features.iter().filter(|f| **f == feature).count();
+            assert_eq!(
+                count, 1,
+                "{feature} should appear exactly once in {list_name}; got {count}"
+            );
+        }
+    }
 
     Ok(())
 }

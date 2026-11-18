@@ -521,25 +521,32 @@ fn primitive_types_compatible(expected: &PrimitiveType, data_type: &ArrowDataTyp
                 None,
             ),
         ) => true,
+        #[cfg(feature = "nanosecond-timestamps")]
+        (PrimitiveType::TimestampNanos, ArrowDataType::Timestamp(TimeUnit::Nanosecond, tz)) => {
+            tz.as_deref().is_some_and(|tz| !tz.is_empty())
+        }
+        #[cfg(feature = "nanosecond-timestamps")]
+        (PrimitiveType::TimestampNanosNtz, ArrowDataType::Timestamp(TimeUnit::Nanosecond, tz)) => {
+            tz.as_deref().is_none_or(str::is_empty)
+        }
         (PrimitiveType::Void, ArrowDataType::Null) => true,
         (PrimitiveType::IntervalYearMonth, ArrowDataType::Int32 | ArrowDataType::UInt32) => true,
         (PrimitiveType::IntervalDayTime, ArrowDataType::Int64 | ArrowDataType::UInt64) => true,
-        #[cfg(feature = "nanosecond-timestamps")]
-        (
-            PrimitiveType::TimestampNanos,
-            ArrowDataType::Timestamp(TimeUnit::Nanosecond, Some(timezone)),
-        ) => timezone.eq_ignore_ascii_case("utc"),
-        #[cfg(feature = "nanosecond-timestamps")]
-        (
-            PrimitiveType::TimestampNanosNtz,
-            ArrowDataType::Timestamp(TimeUnit::Nanosecond, None),
-        ) => true,
         _ => false,
     }
 }
+
 #[cfg(test)]
 fn expected_timestamp_micros(value: &str) -> i64 {
     chrono::DateTime::parse_from_rfc3339(value)
         .unwrap()
         .timestamp_micros()
+}
+
+#[cfg(all(test, feature = "nanosecond-timestamps"))]
+fn expected_timestamp_nanos(value: &str) -> i64 {
+    chrono::DateTime::parse_from_rfc3339(value)
+        .unwrap()
+        .timestamp_nanos_opt()
+        .unwrap()
 }

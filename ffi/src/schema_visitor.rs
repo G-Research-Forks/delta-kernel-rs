@@ -630,8 +630,9 @@ fn visit_field_geography_impl(
     )
 }
 
-#[cfg(feature = "nanosecond-timestamps")]
 /// Visit a timestamp_nanos field. Similar to timestamp but nanosecond resolution.
+///
+/// Returns an error if kernel was not built with the `nanosecond-timestamps` feature.
 ///
 /// # Safety
 ///
@@ -648,18 +649,41 @@ pub unsafe extern "C" fn visit_field_timestamp_nanos(
 ) -> ExternResult<usize> {
     let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
     let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_timestamp_nanos_impl(state, name_str, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+#[cfg(feature = "nanosecond-timestamps")]
+fn visit_field_timestamp_nanos_impl(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelResult<&str>,
+    nullable: bool,
+    metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
     visit_field_primitive_impl(
         state,
-        name_str,
+        name,
         PrimitiveType::TimestampNanos,
         nullable,
         metadata,
     )
-    .into_extern_result(&allocate_error)
 }
 
-#[cfg(feature = "nanosecond-timestamps")]
+#[cfg(not(feature = "nanosecond-timestamps"))]
+fn visit_field_timestamp_nanos_impl(
+    _state: &mut KernelSchemaVisitorState,
+    _name: KernelResult<&str>,
+    _nullable: bool,
+    _metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
+    Err(KernelError::unsupported(
+        "`nanosecond-timestamps` feature not enabled in delta-kernel",
+    ))
+}
+
 /// Visit a timestamp_nanos_ntz field. Similar to timestamp_ntz but nanosecond resolution.
+///
+/// Returns an error if kernel was not built with the `nanosecond-timestamps` feature.
 ///
 /// # Safety
 ///
@@ -676,14 +700,36 @@ pub unsafe extern "C" fn visit_field_timestamp_nanos_ntz(
 ) -> ExternResult<usize> {
     let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
     let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_timestamp_nanos_ntz_impl(state, name_str, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+#[cfg(feature = "nanosecond-timestamps")]
+fn visit_field_timestamp_nanos_ntz_impl(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelResult<&str>,
+    nullable: bool,
+    metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
     visit_field_primitive_impl(
         state,
-        name_str,
+        name,
         PrimitiveType::TimestampNanosNtz,
         nullable,
         metadata,
     )
-    .into_extern_result(&allocate_error)
+}
+
+#[cfg(not(feature = "nanosecond-timestamps"))]
+fn visit_field_timestamp_nanos_ntz_impl(
+    _state: &mut KernelSchemaVisitorState,
+    _name: KernelResult<&str>,
+    _nullable: bool,
+    _metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
+    Err(KernelError::unsupported(
+        "`nanosecond-timestamps` feature not enabled in delta-kernel",
+    ))
 }
 
 /// Visit a decimal field. Decimal fields store fixed-precision decimal numbers with specified

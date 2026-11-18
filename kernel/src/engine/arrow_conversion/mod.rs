@@ -795,6 +795,18 @@ mod tests {
         Ok(())
     }
 
+    // Timestamp stats are serialized with a hardcoded `Z` suffix, which is only correct when the
+    // Arrow timezone is UTC, so any other timezone must be rejected.
+    #[rstest]
+    fn test_non_utc_timestamp_conversion_fails(
+        #[values(TimeUnit::Millisecond, TimeUnit::Microsecond, TimeUnit::Nanosecond)]
+        unit: TimeUnit,
+        #[values("", "+08:00", "America/New_York")] timezone: &str,
+    ) {
+        let arrow_type = ArrowDataType::Timestamp(unit, Some(timezone.into()));
+        assert!(DataType::try_from_arrow(&arrow_type).is_err());
+    }
+
     // void is inherently always-null, so nullable=false is semantically contradictory.
     // We tolerate it on reads (be permissive), and the Arrow conversion still
     // produces ArrowDataType::Null. The field retains nullable=false as-is — no coercion.

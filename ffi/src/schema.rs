@@ -293,7 +293,6 @@ pub struct EngineSchemaVisitor {
         annotation: FfiNullableStringMap,
     ),
 
-    #[cfg(feature = "nanosecond-timestamps")]
     /// Visit a nanosecond `timestamp` belonging to the list identified by `sibling_list_id`.
     pub visit_timestamp_nanos: extern "C" fn(
         data: *mut c_void,
@@ -303,7 +302,6 @@ pub struct EngineSchemaVisitor {
         metadata: &CMetadataMap,
     ),
 
-    #[cfg(feature = "nanosecond-timestamps")]
     /// Visit a nanosecond `timestamp` with no timezone belonging to the list identified
     /// by `sibling_list_id`.
     pub visit_timestamp_nanos_ntz: extern "C" fn(
@@ -688,9 +686,7 @@ mod tests {
     visit_simple_type!(visit_date, "date");
     visit_simple_type!(visit_timestamp, "timestamp");
     visit_simple_type!(visit_timestamp_ntz, "timestamp_ntz");
-    #[cfg(feature = "nanosecond-timestamps")]
     visit_simple_type!(visit_timestamp_nanos, "timestamp_nanos");
-    #[cfg(feature = "nanosecond-timestamps")]
     visit_simple_type!(visit_timestamp_nanos_ntz, "timestamp_nanos_ntz");
     visit_simple_type!(visit_interval_year_month, "interval year to month");
     visit_simple_type!(visit_interval_day_time, "interval day to second");
@@ -760,16 +756,14 @@ mod tests {
             visit_date,
             visit_timestamp,
             visit_timestamp_ntz,
-            #[cfg(feature = "nanosecond-timestamps")]
-            visit_timestamp_nanos,
-            #[cfg(feature = "nanosecond-timestamps")]
-            visit_timestamp_nanos_ntz,
             visit_interval_year_month,
             visit_interval_day_time,
             visit_void,
             visit_variant,
             visit_geometry,
             visit_geography,
+            visit_timestamp_nanos,
+            visit_timestamp_nanos_ntz,
         }
     }
 
