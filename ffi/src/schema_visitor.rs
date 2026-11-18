@@ -909,6 +909,52 @@ fn visit_field_timestamp_nanos_ntz_impl(
     ))
 }
 
+/// EXPERIMENTAL. Visit a `time(9)` field. These fields store a time of day in nanoseconds
+/// since midnight, with no timezone.
+///
+/// Returns an error if kernel was not built with the `nanosecond-time` feature.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer. When non-null, `metadata` must point to a valid
+/// descriptor and callback.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_time_nanos(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    metadata: *const EngineMetadata,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_time_nanos_impl(state, name_str, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+#[cfg(feature = "nanosecond-time")]
+fn visit_field_time_nanos_impl(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelResult<&str>,
+    nullable: bool,
+    metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
+    visit_field_primitive_impl(state, name, PrimitiveType::TimeNanos, nullable, metadata)
+}
+
+#[cfg(not(feature = "nanosecond-time"))]
+fn visit_field_time_nanos_impl(
+    _state: &mut KernelSchemaVisitorState,
+    _name: KernelResult<&str>,
+    _nullable: bool,
+    _metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
+    Err(KernelError::unsupported(
+        "`nanosecond-time` feature not enabled in delta-kernel",
+    ))
+}
+
 /// Visit a decimal field. Decimal fields store fixed-precision decimal numbers with specified
 /// precision and scale.
 ///
@@ -2434,6 +2480,8 @@ mod tests {
         let col_uint32 = visit_field!(uint32, state, "col_uint32", false, null());
         #[cfg(feature = "unsigned-integers")]
         let col_uint64 = visit_field!(uint64, state, "col_uint64", false, null());
+        #[cfg(feature = "nanosecond-time")]
+        let col_time_nanos = visit_field!(time_nanos, state, "col_time_nanos", false, null());
         let col_decimal = visit_field!(decimal, state, "col_decimal", 10, 2, false, null());
 
         // Create array<string>
@@ -2526,6 +2574,8 @@ mod tests {
             col_uint32,
             #[cfg(feature = "unsigned-integers")]
             col_uint64,
+            #[cfg(feature = "nanosecond-time")]
+            col_time_nanos,
         ];
         let schema_id = ok_or_panic(unsafe {
             visit_field_struct(
@@ -2546,7 +2596,8 @@ mod tests {
             + cfg!(feature = "geo-type-in-dev") as usize * 2
             + cfg!(feature = "nanosecond-timestamps") as usize * 2
             + cfg!(feature = "float16") as usize
-            + cfg!(feature = "unsigned-integers") as usize * 4;
+            + cfg!(feature = "unsigned-integers") as usize * 4
+            + cfg!(feature = "nanosecond-time") as usize;
         assert_eq!(fields.len(), expected_len);
 
         // Validate the primitive fields
@@ -2665,7 +2716,10 @@ mod tests {
 
         #[cfg(feature = "unsigned-integers")]
         {
-            let uint_base = expected_len - 4;
+            let uint_base = 20
+                + cfg!(feature = "geo-type-in-dev") as usize * 2
+                + cfg!(feature = "nanosecond-timestamps") as usize * 2
+                + cfg!(feature = "float16") as usize;
             let expected = [
                 ("col_uint8", PrimitiveType::Uint8),
                 ("col_uint16", PrimitiveType::Uint16),
@@ -2678,6 +2732,14 @@ mod tests {
                 assert_eq!(field.data_type(), &DataType::Primitive(ptype));
                 assert!(!field.is_nullable());
             }
+        }
+
+        #[cfg(feature = "nanosecond-time")]
+        {
+            let field = fields[expected_len - 1];
+            assert_eq!(field.name(), "col_time_nanos");
+            assert_eq!(field.data_type(), &DataType::TIME_NANOS);
+            assert!(!field.is_nullable());
         }
     }
 

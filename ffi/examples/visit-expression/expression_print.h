@@ -199,6 +199,9 @@ void print_tree_helper(ExpressionItem ref, int depth) {
         case TimestampNanosNtz:
           printf("TimestampNanosNtz(%lld)\n", (long long)lit->value.long_data);
           break;
+        case TimeNanos:
+          printf("TimeNanos(%lld)\n", (long long)lit->value.long_data);
+          break;
         case Date:
           printf("Date(%d)\n", lit->value.integer_data);
           break;

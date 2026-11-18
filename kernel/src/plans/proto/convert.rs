@@ -597,6 +597,8 @@ impl From<&Scalar> for proto_expr::Scalar {
             Scalar::TimestampNanos(v) => Value::TimestampNanos(*v),
             #[cfg(feature = "nanosecond-timestamps")]
             Scalar::TimestampNanosNtz(v) => Value::TimestampNanosNtz(*v),
+            #[cfg(feature = "nanosecond-time")]
+            Scalar::TimeNanos(v) => Value::TimeNanos(*v),
             Scalar::Date(v) => Value::Date(*v),
             Scalar::Binary(v) => Value::Binary(v.clone()),
             Scalar::Decimal(decimal) => Value::Decimal(decimal.into()),
@@ -720,6 +722,8 @@ impl From<&PrimitiveType> for proto_schema::PrimitiveType {
             PrimitiveType::TimestampNanosNtz => {
                 PrimitiveTypeKind::Simple(Simple::TimestampNanosNtz as i32)
             }
+            #[cfg(feature = "nanosecond-time")]
+            PrimitiveType::TimeNanos => PrimitiveTypeKind::Simple(Simple::TimeNanos as i32),
             PrimitiveType::Decimal(decimal) => PrimitiveTypeKind::Decimal((*decimal).into()),
             #[cfg(feature = "geo-type-in-dev")]
             PrimitiveType::Geometry(geometry) => {
@@ -965,6 +969,14 @@ impl TryFrom<proto_schema::PrimitiveType> for PrimitiveType {
                     Simple::Uint8 | Simple::Uint16 | Simple::Uint32 | Simple::Uint64 => {
                         return Err(KernelError::schema(
                             "unsigned integer types require the 'unsigned-integers' feature",
+                        ))
+                    }
+                    #[cfg(feature = "nanosecond-time")]
+                    Simple::TimeNanos => PrimitiveType::TimeNanos,
+                    #[cfg(not(feature = "nanosecond-time"))]
+                    Simple::TimeNanos => {
+                        return Err(KernelError::schema(
+                            "time(9) type requires the 'nanosecond-time' feature",
                         ))
                     }
                     Simple::Void => PrimitiveType::Void,
@@ -2141,6 +2153,7 @@ mod tests {
             Value::IntervalDayTime(_) => "interval_day_time",
             Value::TimestampNanos(_) => "timestamp_nanos",
             Value::TimestampNanosNtz(_) => "timestamp_nanos_ntz",
+            Value::TimeNanos(_) => "time_nanos",
             Value::Date(_) => "date",
             Value::Binary(_) => "binary",
             Value::Decimal(_) => "decimal",

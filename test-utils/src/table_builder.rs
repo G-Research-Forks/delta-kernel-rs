@@ -55,6 +55,8 @@ use std::sync::Arc;
 
 #[cfg(feature = "float16")]
 use delta_kernel::arrow::array::Float16Array;
+#[cfg(feature = "nanosecond-time")]
+use delta_kernel::arrow::array::Time64NanosecondArray;
 #[cfg(feature = "nanosecond-timestamps")]
 use delta_kernel::arrow::array::TimestampNanosecondArray;
 use delta_kernel::arrow::array::{
@@ -1547,6 +1549,13 @@ fn generate_column(arrow_type: &ArrowDataType, rows: usize, base: i32) -> ArrayR
             let values: Vec<i64> = (0..rows).map(|i| (base + i as i32) as i64 * 1000).collect();
             Arc::new(Int64Array::from(values))
         }
+        #[cfg(feature = "nanosecond-time")]
+        ArrowDataType::Time64(TimeUnit::Nanosecond) => {
+            let values: Vec<i64> = (0..rows)
+                .map(|i| time_nanos_for_seed(base as usize + i))
+                .collect();
+            Arc::new(Time64NanosecondArray::from(values))
+        }
         #[cfg(feature = "unsigned-integers")]
         ArrowDataType::UInt8 => {
             let values: Vec<u8> = (0..rows).map(|i| ((base + i as i32) % 256) as u8).collect();
@@ -1866,6 +1875,12 @@ fn generate_partition_values(
         .collect()
 }
 
+#[cfg(feature = "nanosecond-time")]
+/// A deterministic time of day in nanoseconds since midnight, with a sub-microsecond part.
+fn time_nanos_for_seed(seed: usize) -> i64 {
+    (seed % 86_400) as i64 * 1_000_000_000 + 123_456_789
+}
+
 /// Generate a deterministic [`Scalar`] partition value for the given data type.
 fn scalar_for_type(data_type: &DataType, seed: usize) -> Scalar {
     match data_type {
@@ -1913,6 +1928,8 @@ fn scalar_for_type(data_type: &DataType, seed: usize) -> Scalar {
                     // Nanoseconds since epoch (no timezone)
                     Scalar::TimestampNanosNtz((18000 + seed as i64) * 86_400_000_000_000)
                 }
+                #[cfg(feature = "nanosecond-time")]
+                PrimitiveType::TimeNanos => Scalar::TimeNanos(time_nanos_for_seed(seed)),
                 #[cfg(feature = "float16")]
                 PrimitiveType::Float16 => Scalar::Float16(f16::from_f32(seed as f32 * 0.5)),
                 #[cfg(feature = "unsigned-integers")]
@@ -2334,6 +2351,37 @@ mod tests {
                 );
             }
         }
+        Ok(())
+    }
+
+    #[cfg(feature = "nanosecond-time")]
+    #[rstest]
+    fn test_time_nanos_table_with_data(
+        #[values(false, true)] partitioned: bool,
+    ) -> KernelResult<()> {
+        let schema = schema_ref! {
+            nullable "time_col": TIME_NANOS,
+            nullable "value": INTEGER,
+        };
+        let partition_columns: &[&str] = if partitioned { &["time_col"] } else { &[] };
+        let table = TestTableBuilder::new()
+            .with_log_state(LogState::with_latest_version(1))
+            .with_schema(schema.clone())
+            .with_partition_columns(partition_columns.iter().copied())
+            .build()?;
+        let engine: Arc<dyn delta_kernel::Engine> =
+            Arc::new(DefaultEngineBuilder::new(table.store().clone()).build());
+        let snap = Snapshot::builder_for(table.table_root()).build(engine.as_ref())?;
+        assert_eq!(snap.schema(), schema);
+        let scan = snap.scan_builder().build()?;
+        let batches = crate::read_scan(&scan, engine)?;
+        let time_type = ArrowDataType::Time64(TimeUnit::Nanosecond);
+        for batch in &batches {
+            let time_col = batch.column_by_name("time_col").unwrap();
+            assert_eq!(time_col.data_type(), &time_type);
+        }
+        let total: usize = batches.iter().map(|b| b.num_rows()).sum();
+        assert_eq!(total, 10);
         Ok(())
     }
 

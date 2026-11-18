@@ -119,6 +119,7 @@ message Scalar {
     uint32 uint16 = 24;
     uint32 uint32 = 25;
     uint64 uint64 = 26;
+    int64 time_nanos = 27;            // nanos since midnight, no tz
   }
 }
 

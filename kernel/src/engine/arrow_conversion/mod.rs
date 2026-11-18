@@ -400,6 +400,8 @@ impl TryFromKernel<&DataType> for ArrowDataType {
                             "Geo types are not yet supported in the default engine: {p}"
                         )))
                     }
+                    #[cfg(feature = "nanosecond-time")]
+                    PrimitiveType::TimeNanos => Ok(ArrowDataType::Time64(TimeUnit::Nanosecond)),
                 }
             }
             DataType::Struct(s) => Ok(ArrowDataType::Struct(
@@ -655,6 +657,8 @@ impl TryFromArrow<&ArrowDataType> for DataType {
             {
                 Ok(DataType::TIMESTAMP)
             }
+            #[cfg(feature = "nanosecond-time")]
+            ArrowDataType::Time64(TimeUnit::Nanosecond) => Ok(DataType::TIME_NANOS),
             ArrowDataType::Struct(fields) => DataType::try_struct_type_from_results(
                 fields.iter().map(|field| field.as_ref().try_into_kernel()),
             )
@@ -1244,6 +1248,29 @@ mod tests {
                 (PARQUET_FIELD_ID_META_KEY.to_string(), id.to_string()),
             ])),
         )
+    }
+
+    #[cfg(feature = "nanosecond-time")]
+    #[test]
+    fn time_nanos_kernel_arrow_roundtrip() {
+        let arrow_type = ArrowDataType::Time64(TimeUnit::Nanosecond);
+        assert_eq!(
+            ArrowDataType::try_from_kernel(&DataType::TIME_NANOS).unwrap(),
+            arrow_type
+        );
+        assert_eq!(
+            DataType::try_from_arrow(&arrow_type).unwrap(),
+            DataType::TIME_NANOS
+        );
+    }
+
+    /// Other time units have no Delta type, and are not widened to nanoseconds.
+    #[rstest]
+    #[case::time32_second(ArrowDataType::Time32(TimeUnit::Second))]
+    #[case::time32_millisecond(ArrowDataType::Time32(TimeUnit::Millisecond))]
+    #[case::time64_microsecond(ArrowDataType::Time64(TimeUnit::Microsecond))]
+    fn other_time_units_are_rejected(#[case] arrow_type: ArrowDataType) {
+        assert!(DataType::try_from_arrow(&arrow_type).is_err());
     }
 
     #[cfg(feature = "unsigned-integers")]

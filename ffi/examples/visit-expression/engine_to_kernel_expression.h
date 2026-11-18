@@ -125,6 +125,16 @@ uintptr_t convert_engine_to_kernel_literal(
       }
       return result.ok;
     }
+    case TimeNanos: {
+      ExternResultusize result =
+          visit_expression_literal_time_nanos(state, lit->value.long_data, allocate_error);
+      if (result.tag == Errusize) {
+        print_error("visit_expression_literal_time_nanos failed", (Error*)result.err);
+        free_error((Error*)result.err);
+        abort();
+      }
+      return result.ok;
+    }
     case Date:
       return visit_expression_literal_date(state, lit->value.integer_data);
     case IntervalYearMonth:

@@ -311,9 +311,9 @@ is the source of truth. Key concepts:
   `materializePartitionColumns`, `rowTracking`
 - Reader + writer: `adaptiveMetadata-preview`, `catalogManaged`, `catalogOwned-preview`,
   `columnMapping`, `deletionVectors`, `float16`, `geospatial`, `parquetEncryption-dev`,
-  `timestampNtz`, `typeWidening`, `typeWidening-preview`, `unsignedIntegerTypes-dev`,
-  `v2Checkpoint`, `vacuumProtocolCheck`, `variantShredding`, `variantShredding-preview`,
-  `variantType`, `variantType-preview`
+  `timeNanos-dev`, `timestampNtz`, `typeWidening`, `typeWidening-preview`,
+  `unsignedIntegerTypes-dev`, `v2Checkpoint`, `vacuumProtocolCheck`, `variantShredding`,
+  `variantShredding-preview`, `variantType`, `variantType-preview`
 
 Keep this list updated when new protocol features are added to kernel.
 

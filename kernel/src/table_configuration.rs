@@ -30,6 +30,8 @@ use crate::schema::{
 use crate::table_features::validate_float16_feature_support;
 #[cfg(feature = "geo-type-in-dev")]
 use crate::table_features::validate_geospatial_feature_support;
+#[cfg(feature = "nanosecond-time")]
+use crate::table_features::validate_time_nanos_feature_support;
 #[cfg(feature = "nanosecond-timestamps")]
 use crate::table_features::validate_timestamp_nanos_feature_support;
 #[cfg(feature = "unsigned-integers")]
@@ -460,6 +462,9 @@ impl TableConfiguration {
 
         #[cfg(feature = "unsigned-integers")]
         validate_unsigned_integer_types_feature_support(&table_config)?;
+
+        #[cfg(feature = "nanosecond-time")]
+        validate_time_nanos_feature_support(&table_config)?;
 
         Ok(table_config)
     }

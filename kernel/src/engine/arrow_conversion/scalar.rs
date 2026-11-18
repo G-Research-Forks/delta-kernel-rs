@@ -5,7 +5,7 @@
 //! All Delta primitive types are supported: Integer, Long, Short, Byte, Float, Double,
 //! Boolean, String, Date, Timestamp, TimestampNtz, Decimal, Binary (including `LargeUtf8`
 //! and `LargeBinary` Arrow variants). Uint8, Uint16, Uint32 and Uint64 are supported with the
-//! `unsigned-integers` feature.
+//! `unsigned-integers` feature, and TimeNanos with the `nanosecond-time` feature.
 //!
 //! Complex types (Struct, Array, Map) are not supported and return an error.
 //!
@@ -16,6 +16,8 @@
 use crate::arrow::array::cast::AsArray;
 #[cfg(feature = "float16")]
 use crate::arrow::array::types::Float16Type;
+#[cfg(feature = "nanosecond-time")]
+use crate::arrow::array::types::Time64NanosecondType;
 #[cfg(feature = "nanosecond-timestamps")]
 use crate::arrow::array::types::TimestampNanosecondType;
 use crate::arrow::array::types::{
@@ -140,6 +142,10 @@ pub fn extract_primitive_scalar(array: &dyn Array, row_idx: usize) -> KernelResu
                 .as_primitive::<TimestampNanosecondType>()
                 .value(row_idx),
         )),
+        #[cfg(feature = "nanosecond-time")]
+        ArrowDataType::Time64(TimeUnit::Nanosecond) => Ok(Scalar::TimeNanos(
+            array.as_primitive::<Time64NanosecondType>().value(row_idx),
+        )),
         ArrowDataType::Decimal128(precision, scale) => {
             if *scale < 0 {
                 return Err(KernelError::generic(format!(
@@ -205,6 +211,8 @@ fn arrow_primitive_to_kernel_type(arrow_type: &ArrowDataType) -> KernelResult<Da
         ArrowDataType::Timestamp(TimeUnit::Microsecond, _) => Ok(DataType::TIMESTAMP_NTZ),
         #[cfg(feature = "nanosecond-timestamps")]
         ArrowDataType::Timestamp(TimeUnit::Nanosecond, _) => Ok(DataType::TIMESTAMP_NANOS_NTZ),
+        #[cfg(feature = "nanosecond-time")]
+        ArrowDataType::Time64(TimeUnit::Nanosecond) => Ok(DataType::TIME_NANOS),
         ArrowDataType::Decimal128(p, s) => {
             if *s < 0 {
                 return Err(KernelError::generic(format!(
@@ -231,6 +239,8 @@ mod tests {
     use super::*;
     #[cfg(feature = "float16")]
     use crate::arrow::array::Float16Array;
+    #[cfg(feature = "nanosecond-time")]
+    use crate::arrow::array::Time64NanosecondArray;
     #[cfg(feature = "nanosecond-timestamps")]
     use crate::arrow::array::TimestampNanosecondArray;
     use crate::arrow::array::{
@@ -298,6 +308,7 @@ mod tests {
     #[cfg_attr(feature = "unsigned-integers", case::uint32(Arc::new(UInt32Array::from(vec![4_000_000_000u32])) as ArrayRef, Scalar::Uint32(4_000_000_000)))]
     #[cfg_attr(feature = "unsigned-integers", case::uint32_max(Arc::new(UInt32Array::from(vec![u32::MAX])) as ArrayRef, Scalar::Uint32(u32::MAX)))]
     #[cfg_attr(feature = "unsigned-integers", case::uint64_max( Arc::new(UInt64Array::from(vec![18446744073709551615u64])) as ArrayRef, Scalar::Uint64(18446744073709551615) ))]
+    #[cfg_attr(feature = "nanosecond-time", case::time_nanos(Arc::new(Time64NanosecondArray::from(vec![47_167_123_456_789i64])) as ArrayRef, Scalar::TimeNanos(47_167_123_456_789)))]
     fn test_extract_primitive_scalar_non_null_returns_typed_value(
         #[case] array: ArrayRef,
         #[case] expected: Scalar,
@@ -575,6 +586,10 @@ mod tests {
         ArrowDataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
         DataType::TIMESTAMP
     )]
+    #[cfg_attr(
+        feature = "nanosecond-time",
+        case::time_nanos(ArrowDataType::Time64(TimeUnit::Nanosecond), DataType::TIME_NANOS)
+    )]
     #[cfg_attr(feature="nanosecond-timestamps", case::timestamp_nanos_tz(
         ArrowDataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
         DataType::TIMESTAMP_NANOS
@@ -754,6 +769,9 @@ mod tests {
         Arc::new(TimestampMicrosecondArray::from(vec![1_743_436_200_000_000i64]).with_timezone("UTC")) as ArrayRef
     )]
     #[case::timestamp_ntz(Arc::new(TimestampMicrosecondArray::from(vec![1_743_436_200_123_456i64])) as ArrayRef)]
+    #[cfg_attr(feature = "nanosecond-time", case::time_nanos(
+        Arc::new(Time64NanosecondArray::from(vec![47_167_123_456_789i64])) as ArrayRef
+    ))]
     #[cfg_attr(feature = "nanosecond-timestamps", case::timestamp_nanos_tz(
         Arc::new(TimestampNanosecondArray::from(vec![1_743_436_200_000_000_123i64]).with_timezone("UTC")) as ArrayRef
     ))]

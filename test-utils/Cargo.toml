@@ -23,6 +23,8 @@ float16 = ["dep:half", "delta_kernel/float16"]
 
 unsigned-integers = ["delta_kernel/unsigned-integers"]
 
+nanosecond-time = ["delta_kernel/nanosecond-time"]
+
 [dependencies]
 # NOTE: We MUST build with SOME arrow version (or compilation would fail). So we pull in `arrow-59`,
 # which ensures `cargo build` succeeds. But we ALSO default to `arrow`, which activates `arrow-60`

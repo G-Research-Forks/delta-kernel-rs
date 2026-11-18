@@ -120,6 +120,8 @@ impl Scalar {
                 // timezone was already set at builder construction time
                 append_val_n_as!(array::TimestampNanosecondBuilder, *val)
             }
+            #[cfg(feature = "nanosecond-time")]
+            TimeNanos(val) => append_val_n_as!(array::Time64NanosecondBuilder, *val),
             Date(val) => append_val_n_as!(array::Date32Builder, *val),
             Binary(val) => append_val_as!(array::BinaryBuilder, val),
             // precision and scale were already set at builder construction time
@@ -216,6 +218,8 @@ impl Scalar {
             DataType::TIMESTAMP_NANOS | DataType::TIMESTAMP_NANOS_NTZ => {
                 append_nulls_as!(array::TimestampNanosecondBuilder)
             }
+            #[cfg(feature = "nanosecond-time")]
+            DataType::TIME_NANOS => append_nulls_as!(array::Time64NanosecondBuilder),
             DataType::DATE => append_nulls_as!(array::Date32Builder),
             DataType::BINARY => append_nulls_as!(array::BinaryBuilder),
             DataType::Primitive(PrimitiveType::Decimal(_)) => {
@@ -522,6 +526,8 @@ fn primitive_types_compatible(expected: &PrimitiveType, data_type: &ArrowDataTyp
         (PrimitiveType::Uint32, ArrowDataType::UInt32) => true,
         #[cfg(feature = "unsigned-integers")]
         (PrimitiveType::Uint64, ArrowDataType::UInt64) => true,
+        #[cfg(feature = "nanosecond-time")]
+        (PrimitiveType::TimeNanos, ArrowDataType::Time64(TimeUnit::Nanosecond)) => true,
         (PrimitiveType::Float, ArrowDataType::Float32) => true,
         (PrimitiveType::Double, ArrowDataType::Float64) => true,
         (PrimitiveType::Boolean, ArrowDataType::Boolean) => true,
