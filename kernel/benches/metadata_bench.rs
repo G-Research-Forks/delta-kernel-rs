@@ -19,6 +19,7 @@
 
 use std::sync::Arc;
 
+use buoyant_kernel as delta_kernel;
 use criterion::{criterion_group, criterion_main, Criterion};
 use delta_kernel::snapshot::Snapshot;
 use delta_kernel::try_parse_uri;

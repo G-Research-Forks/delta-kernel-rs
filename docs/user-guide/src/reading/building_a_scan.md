@@ -14,8 +14,8 @@ Every scan follows the same pattern:
 5. Execute the scan
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # use std::sync::Arc;
 # use delta_kernel_default_engine::DefaultEngine;
 # use delta_kernel_default_engine::storage::store_from_url;
@@ -45,8 +45,8 @@ Without any configuration, this scans all columns with no filter. It's equivalen
 Pass a schema containing only the columns you want to read:
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # use std::sync::Arc;
 # use delta_kernel_default_engine::DefaultEngine;
 # use delta_kernel_default_engine::storage::store_from_url;
@@ -80,8 +80,8 @@ For more details, see [Column Selection](./column_selection.md).
 Pass a predicate expression to skip files that cannot contain matching rows:
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # use std::sync::Arc;
 # use delta_kernel_default_engine::DefaultEngine;
 # use delta_kernel_default_engine::storage::store_from_url;
@@ -126,8 +126,8 @@ There are two ways to execute a scan: the **simple path** for single-process use
 transformations. It returns an iterator of `EngineData` results.
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # use std::sync::Arc;
 # use delta_kernel::engine::arrow_data::EngineDataArrowExt as _;
 # use delta_kernel_default_engine::DefaultEngine;

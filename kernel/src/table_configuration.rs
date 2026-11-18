@@ -1277,14 +1277,17 @@ impl TableConfiguration {
 mod test {
 
     use std::collections::HashMap;
+    #[cfg(feature = "nanosecond-timestamps")]
     use std::sync::Arc;
 
     use rstest::rstest;
 
     use super::{InCommitTimestampEnablement, StatsOutputSchemas, TableConfiguration};
     use crate::actions::{Metadata, Protocol, MIN_VALUES};
+    #[cfg(feature = "nanosecond-timestamps")]
+    use crate::schema::StructType;
     use crate::schema::{
-        column_name, schema, schema_ref, ColumnName, DataType, SchemaRef, StructField, StructType,
+        column_name, schema, schema_ref, ColumnName, DataType, SchemaRef, StructField,
     };
     use crate::table_features::{
         ColumnMappingMode, FeatureType, Operation, TableFeature, TABLE_FEATURES_MIN_READER_VERSION,

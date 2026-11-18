@@ -133,8 +133,8 @@ The `DefaultEngine` is a batteries-included implementation that works out of the
 To construct one, create an object store and pass it to the builder:
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # extern crate url;
 # use delta_kernel_default_engine::DefaultEngine;
 # use delta_kernel_default_engine::storage::store_from_url;

@@ -567,8 +567,9 @@ fn maybe_enable_parquet_encryption(
 /// column keys need a footer key, every column must be in the schema, no column may be listed
 /// twice or under a listed ancestor, and partition and clustering columns cannot be encrypted
 /// (clustering columns need statistics, which encrypted columns cannot have, so a clustered table
-/// cannot use uniform encryption either). Columns are given as logical names, since physical names are only assigned at create; the property is
-/// rewritten to the physical names the RFC requires under column mapping.
+/// cannot use uniform encryption either). Columns are given as logical names, since physical names
+/// are only assigned at create; the property is rewritten to the physical names the RFC requires
+/// under column mapping.
 ///
 /// Returns whether any `delta.encryption.*` property is set, in which case the table's protocol
 /// must list `parquetEncryption-dev`. Exposed so engines that build their own CREATE TABLE

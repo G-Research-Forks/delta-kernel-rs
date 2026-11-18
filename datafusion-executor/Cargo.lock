@@ -458,6 +458,49 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
+name = "buoyant_kernel"
+version = "0.30.1"
+dependencies = [
+ "arrow",
+ "buoyant_kernel_derive",
+ "bytes",
+ "chrono",
+ "chrono-tz",
+ "crc",
+ "derive_more",
+ "indexmap",
+ "itertools 0.14.0",
+ "object_store",
+ "parquet",
+ "percent-encoding",
+ "prost",
+ "prost-build",
+ "protoc-bin-vendored",
+ "rand 0.9.5",
+ "reqwest 0.13.4",
+ "roaring",
+ "rustc_version",
+ "serde",
+ "serde_json",
+ "strum",
+ "thiserror",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
+ "z85",
+]
+
+[[package]]
+name = "buoyant_kernel_derive"
+version = "2.0.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "bytemuck"
 version = "1.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1395,54 +1438,11 @@ dependencies = [
 name = "datafusion_executor"
 version = "0.26.0"
 dependencies = [
+ "buoyant_kernel",
  "datafusion",
- "delta_kernel",
  "itertools 0.14.0",
  "rstest",
  "tokio",
-]
-
-[[package]]
-name = "delta_kernel"
-version = "0.30.1"
-dependencies = [
- "arrow",
- "bytes",
- "chrono",
- "chrono-tz",
- "crc",
- "delta_kernel_derive",
- "derive_more",
- "indexmap",
- "itertools 0.14.0",
- "object_store",
- "parquet",
- "percent-encoding",
- "prost",
- "prost-build",
- "protoc-bin-vendored",
- "rand 0.9.5",
- "reqwest 0.13.4",
- "roaring",
- "rustc_version",
- "serde",
- "serde_json",
- "strum",
- "thiserror",
- "tracing",
- "tracing-subscriber",
- "url",
- "uuid",
- "z85",
-]
-
-[[package]]
-name = "delta_kernel_derive"
-version = "0.30.1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
 ]
 
 [[package]]
