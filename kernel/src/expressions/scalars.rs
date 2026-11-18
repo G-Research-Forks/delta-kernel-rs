@@ -954,6 +954,11 @@ impl PrimitiveType {
             TimeNanos => {
                 let time = NaiveTime::parse_from_str(raw, "%H:%M:%S%.f")
                     .map_err(|_| self.parse_error(raw))?;
+                // chrono represents leap seconds with nanosecond() >= 1e9, which has no valid
+                // nanoseconds-since-midnight representation.
+                if time.nanosecond() >= 1_000_000_000 {
+                    return Err(self.parse_error(raw));
+                }
                 let nanos = i64::from(time.num_seconds_from_midnight()) * 1_000_000_000
                     + i64::from(time.nanosecond());
                 Ok(Scalar::TimeNanos(nanos))
@@ -1470,6 +1475,9 @@ mod tests {
     #[case::hour_out_of_range("24:00:00")]
     #[case::has_date("2011-01-11 13:06:07")]
     #[case::has_offset("13:06:07Z")]
+    #[case::leap_second_end_of_day("23:59:60")]
+    #[case::leap_second_with_fraction("23:59:60.5")]
+    #[case::leap_second_mid_day("12:34:60")]
     fn test_time_nanos_parse_fails(#[case] raw: &str) {
         let result = PrimitiveType::TimeNanos.parse_scalar(raw);
         assert!(matches!(result, Err(Error::ParseError(..))), "{result:?}");
