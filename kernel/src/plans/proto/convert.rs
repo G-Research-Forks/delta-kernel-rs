@@ -575,6 +575,16 @@ impl From<&Scalar> for proto_expr::Scalar {
             Scalar::Long(v) => Value::Long(*v),
             Scalar::Short(v) => Value::Short(*v as i32),
             Scalar::Byte(v) => Value::Byte(*v as i32),
+            #[cfg(feature = "float16")]
+            Scalar::Float16(v) => Value::Float16(u32::from(v.to_bits())),
+            #[cfg(feature = "unsigned-integers")]
+            Scalar::Uint8(v) => Value::Uint8(u32::from(*v)),
+            #[cfg(feature = "unsigned-integers")]
+            Scalar::Uint16(v) => Value::Uint16(u32::from(*v)),
+            #[cfg(feature = "unsigned-integers")]
+            Scalar::Uint32(v) => Value::Uint32(*v),
+            #[cfg(feature = "unsigned-integers")]
+            Scalar::Uint64(v) => Value::Uint64(*v),
             Scalar::Float(v) => Value::Float(*v),
             Scalar::Double(v) => Value::Double(*v),
             Scalar::String(v) => Value::String(v.clone()),
@@ -587,6 +597,8 @@ impl From<&Scalar> for proto_expr::Scalar {
             Scalar::TimestampNanos(v) => Value::TimestampNanos(*v),
             #[cfg(feature = "nanosecond-timestamps")]
             Scalar::TimestampNanosNtz(v) => Value::TimestampNanosNtz(*v),
+            #[cfg(feature = "nanosecond-time")]
+            Scalar::TimeNanos(v) => Value::TimeNanos(*v),
             Scalar::Date(v) => Value::Date(*v),
             Scalar::Binary(v) => Value::Binary(v.clone()),
             Scalar::Decimal(decimal) => Value::Decimal(decimal.into()),
@@ -685,6 +697,16 @@ impl From<&PrimitiveType> for proto_schema::PrimitiveType {
             PrimitiveType::Integer => PrimitiveTypeKind::Simple(Simple::Integer as i32),
             PrimitiveType::Short => PrimitiveTypeKind::Simple(Simple::Short as i32),
             PrimitiveType::Byte => PrimitiveTypeKind::Simple(Simple::Byte as i32),
+            #[cfg(feature = "float16")]
+            PrimitiveType::Float16 => PrimitiveTypeKind::Simple(Simple::Float16 as i32),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint8 => PrimitiveTypeKind::Simple(Simple::Uint8 as i32),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint16 => PrimitiveTypeKind::Simple(Simple::Uint16 as i32),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint32 => PrimitiveTypeKind::Simple(Simple::Uint32 as i32),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint64 => PrimitiveTypeKind::Simple(Simple::Uint64 as i32),
             PrimitiveType::Float => PrimitiveTypeKind::Simple(Simple::Float as i32),
             PrimitiveType::Double => PrimitiveTypeKind::Simple(Simple::Double as i32),
             PrimitiveType::Boolean => PrimitiveTypeKind::Simple(Simple::Boolean as i32),
@@ -700,6 +722,8 @@ impl From<&PrimitiveType> for proto_schema::PrimitiveType {
             PrimitiveType::TimestampNanosNtz => {
                 PrimitiveTypeKind::Simple(Simple::TimestampNanosNtz as i32)
             }
+            #[cfg(feature = "nanosecond-time")]
+            PrimitiveType::TimeNanos => PrimitiveTypeKind::Simple(Simple::TimeNanos as i32),
             PrimitiveType::Decimal(decimal) => PrimitiveTypeKind::Decimal((*decimal).into()),
             #[cfg(feature = "geo-type-in-dev")]
             PrimitiveType::Geometry(geometry) => {
@@ -923,6 +947,36 @@ impl TryFrom<proto_schema::PrimitiveType> for PrimitiveType {
                     Simple::TimestampNanos | Simple::TimestampNanosNtz => {
                         return Err(KernelError::schema(
                             "timestamp_nanos types require the 'nanosecond-timestamps' feature",
+                        ))
+                    }
+                    #[cfg(feature = "float16")]
+                    Simple::Float16 => PrimitiveType::Float16,
+                    #[cfg(not(feature = "float16"))]
+                    Simple::Float16 => {
+                        return Err(KernelError::schema(
+                            "float16 type requires the 'float16' feature",
+                        ))
+                    }
+                    #[cfg(feature = "unsigned-integers")]
+                    Simple::Uint8 => PrimitiveType::Uint8,
+                    #[cfg(feature = "unsigned-integers")]
+                    Simple::Uint16 => PrimitiveType::Uint16,
+                    #[cfg(feature = "unsigned-integers")]
+                    Simple::Uint32 => PrimitiveType::Uint32,
+                    #[cfg(feature = "unsigned-integers")]
+                    Simple::Uint64 => PrimitiveType::Uint64,
+                    #[cfg(not(feature = "unsigned-integers"))]
+                    Simple::Uint8 | Simple::Uint16 | Simple::Uint32 | Simple::Uint64 => {
+                        return Err(KernelError::schema(
+                            "unsigned integer types require the 'unsigned-integers' feature",
+                        ))
+                    }
+                    #[cfg(feature = "nanosecond-time")]
+                    Simple::TimeNanos => PrimitiveType::TimeNanos,
+                    #[cfg(not(feature = "nanosecond-time"))]
+                    Simple::TimeNanos => {
+                        return Err(KernelError::schema(
+                            "time(9) type requires the 'nanosecond-time' feature",
                         ))
                     }
                     Simple::Void => PrimitiveType::Void,
@@ -2036,6 +2090,14 @@ mod tests {
 
     #[rstest]
     #[case(Scalar::Integer(7), "integer")]
+    #[cfg_attr(
+        feature = "nanosecond-timestamps",
+        case(Scalar::TimestampNanos(7), "timestamp_nanos")
+    )]
+    #[cfg_attr(
+        feature = "nanosecond-timestamps",
+        case(Scalar::TimestampNanosNtz(7), "timestamp_nanos_ntz")
+    )]
     #[case(Scalar::Long(7), "long")]
     #[case(Scalar::Short(7), "short")]
     #[case(Scalar::Byte(7), "byte")]
@@ -2084,6 +2146,11 @@ mod tests {
             Value::Long(_) => "long",
             Value::Short(_) => "short",
             Value::Byte(_) => "byte",
+            Value::Float16(_) => "float16",
+            Value::Uint8(_) => "uint8",
+            Value::Uint16(_) => "uint16",
+            Value::Uint32(_) => "uint32",
+            Value::Uint64(_) => "uint64",
             Value::Float(_) => "float",
             Value::Double(_) => "double",
             Value::String(_) => "string",
@@ -2094,6 +2161,7 @@ mod tests {
             Value::IntervalDayTime(_) => "interval_day_time",
             Value::TimestampNanos(_) => "timestamp_nanos",
             Value::TimestampNanosNtz(_) => "timestamp_nanos_ntz",
+            Value::TimeNanos(_) => "time_nanos",
             Value::Date(_) => "date",
             Value::Binary(_) => "binary",
             Value::Decimal(_) => "decimal",
@@ -2280,6 +2348,20 @@ mod tests {
 
     #[rstest]
     #[case(PrimitiveType::String, proto_schema::SimplePrimitiveType::String)]
+    #[cfg_attr(
+        feature = "nanosecond-timestamps",
+        case(
+            PrimitiveType::TimestampNanos,
+            proto_schema::SimplePrimitiveType::TimestampNanos
+        )
+    )]
+    #[cfg_attr(
+        feature = "nanosecond-timestamps",
+        case(
+            PrimitiveType::TimestampNanosNtz,
+            proto_schema::SimplePrimitiveType::TimestampNanosNtz
+        )
+    )]
     #[case(PrimitiveType::Long, proto_schema::SimplePrimitiveType::Long)]
     #[case(PrimitiveType::Integer, proto_schema::SimplePrimitiveType::Integer)]
     #[case(PrimitiveType::Short, proto_schema::SimplePrimitiveType::Short)]
@@ -2439,6 +2521,32 @@ mod tests {
         primitive: PrimitiveType,
     ) {
         assert_data_type_round_trips(DataType::Primitive(primitive));
+    }
+
+    #[cfg(feature = "nanosecond-timestamps")]
+    #[rstest]
+    fn round_trip_timestamp_nanos(
+        #[values(PrimitiveType::TimestampNanos, PrimitiveType::TimestampNanosNtz)]
+        primitive: PrimitiveType,
+    ) {
+        assert_data_type_round_trips(DataType::Primitive(primitive));
+    }
+
+    #[cfg(not(feature = "nanosecond-timestamps"))]
+    #[rstest]
+    fn timestamp_nanos_decode_requires_feature(
+        #[values(
+            proto_schema::SimplePrimitiveType::TimestampNanos,
+            proto_schema::SimplePrimitiveType::TimestampNanosNtz
+        )]
+        simple: proto_schema::SimplePrimitiveType,
+    ) {
+        let err = DataType::try_from(simple_primitive_data_type(simple as i32)).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("require the 'nanosecond-timestamps' feature"),
+            "{err}"
+        );
     }
 
     #[rstest]

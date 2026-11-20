@@ -338,6 +338,10 @@ DEFINE_VISIT_SIMPLE_TYPE(string)
 DEFINE_VISIT_SIMPLE_TYPE(integer)
 DEFINE_VISIT_SIMPLE_TYPE(short)
 DEFINE_VISIT_SIMPLE_TYPE(byte)
+DEFINE_VISIT_SIMPLE_TYPE(uint8)
+DEFINE_VISIT_SIMPLE_TYPE(uint16)
+DEFINE_VISIT_SIMPLE_TYPE(uint32)
+DEFINE_VISIT_SIMPLE_TYPE(uint64)
 DEFINE_VISIT_SIMPLE_TYPE(long)
 DEFINE_VISIT_SIMPLE_TYPE(float)
 DEFINE_VISIT_SIMPLE_TYPE(double)
@@ -346,6 +350,9 @@ DEFINE_VISIT_SIMPLE_TYPE(binary)
 DEFINE_VISIT_SIMPLE_TYPE(date)
 DEFINE_VISIT_SIMPLE_TYPE(timestamp)
 DEFINE_VISIT_SIMPLE_TYPE(timestamp_ntz)
+DEFINE_VISIT_SIMPLE_TYPE(timestamp_nanos)
+DEFINE_VISIT_SIMPLE_TYPE(timestamp_nanos_ntz)
+DEFINE_VISIT_SIMPLE_TYPE(time_nanos)
 DEFINE_VISIT_SIMPLE_TYPE(void)
 DEFINE_VISIT_SIMPLE_TYPE(variant)
 
@@ -464,6 +471,10 @@ CSchema* build_cschema(SharedSchema* schema, SharedExternEngine* engine)
     .visit_integer = visit_integer,
     .visit_short = visit_short,
     .visit_byte = visit_byte,
+    .visit_uint8 = visit_uint8,
+    .visit_uint16 = visit_uint16,
+    .visit_uint32 = visit_uint32,
+    .visit_uint64 = visit_uint64,
     .visit_float = visit_float,
     .visit_double = visit_double,
     .visit_boolean = visit_boolean,
@@ -477,6 +488,9 @@ CSchema* build_cschema(SharedSchema* schema, SharedExternEngine* engine)
     .visit_interval_day_time = visit_interval_day_time,
     .visit_void = visit_void,
     .visit_variant = visit_variant,
+    .visit_timestamp_nanos = visit_timestamp_nanos,
+    .visit_timestamp_nanos_ntz = visit_timestamp_nanos_ntz,
+    .visit_time_nanos = visit_time_nanos,
   };
   uintptr_t schema_list_id = visit_schema(schema, &visitor);
 #ifdef VERBOSE

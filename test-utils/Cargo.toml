@@ -17,7 +17,19 @@ default = ["arrow"]
 arrow = ["arrow-60"]
 arrow-60 = ["delta_kernel/arrow-60", "delta_kernel_default_engine/arrow-60"]
 arrow-59 = ["delta_kernel/arrow-59", "delta_kernel_default_engine/arrow-59"]
-nanosecond-timestamps = ["delta_kernel/nanosecond-timestamps"]
+nanosecond-timestamps = [
+  "delta_kernel/nanosecond-timestamps",
+  "delta_kernel_default_engine/nanosecond-timestamps",
+]
+
+float16 = ["dep:half", "delta_kernel/float16", "delta_kernel_default_engine/float16"]
+
+unsigned-integers = [
+  "delta_kernel/unsigned-integers",
+  "delta_kernel_default_engine/unsigned-integers",
+]
+
+nanosecond-time = ["delta_kernel/nanosecond-time", "delta_kernel_default_engine/nanosecond-time"]
 
 [dependencies]
 # NOTE: We MUST build with SOME arrow version (or compilation would fail). So we pull in `arrow-59`,
@@ -27,6 +39,7 @@ delta_kernel = { package = "buoyant_kernel", path = "../kernel", features = [ "a
 # Re-exported so kernel's integration tests (which cannot dev-dep default-engine directly due to
 # the cycle through this crate) can reach it via `test_utils::delta_kernel_default_engine::*`.
 delta_kernel_default_engine = { package = "buoyant_kernel_engine", path = "../default-engine", default-features = false, features = ["arrow-59", "rustls"] }
+half = { version = "2.7.1", features = ["serde"], optional = true }
 itertools = "0.14.0"
 serde_json = "1.0.142"
 tar = "0.4"

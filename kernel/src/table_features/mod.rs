@@ -13,8 +13,12 @@ pub(crate) use column_mapping::{
     StaleAnnotationPolicy,
 };
 use delta_kernel_derive::internal_api;
+#[cfg(feature = "float16")]
+pub(crate) use float16::{schema_contains_float16, validate_float16_feature_support};
 #[cfg(feature = "geo-type-in-dev")]
 pub(crate) use geospatial::validate_geospatial_feature_support;
+#[cfg(feature = "nanosecond-time")]
+pub(crate) use time_nanos::{schema_contains_time_nanos, validate_time_nanos_feature_support};
 #[cfg(feature = "nanosecond-timestamps")]
 pub(crate) use timestamp_nanos::{
     schema_contains_timestamp_nanos, validate_timestamp_nanos_feature_support,
@@ -32,6 +36,10 @@ use strum::{AsRefStr, Display as StrumDisplay, EnumCount, EnumIter, EnumString};
 pub(crate) use timestamp_ntz::{
     schema_contains_timestamp_ntz, validate_timestamp_ntz_feature_support,
 };
+#[cfg(feature = "unsigned-integers")]
+pub(crate) use unsigned_integers::{
+    schema_contains_unsigned_integers, validate_unsigned_integer_types_feature_support,
+};
 
 use crate::actions::Protocol;
 use crate::expressions::Scalar;
@@ -42,10 +50,16 @@ use crate::utils::require;
 use crate::{KernelError, KernelResult};
 
 mod column_mapping;
+#[cfg(feature = "float16")]
+mod float16;
 #[cfg(feature = "geo-type-in-dev")]
 mod geospatial;
 mod iceberg_compat;
+#[cfg(feature = "nanosecond-time")]
+mod time_nanos;
 mod timestamp_ntz;
+#[cfg(feature = "unsigned-integers")]
+mod unsigned_integers;
 
 /// Minimum reader/writer protocol version that the kernel can handle.
 pub const MIN_VALID_RW_VERSION: i32 = 1;
@@ -167,6 +181,9 @@ pub(crate) enum TableFeature {
     #[strum(to_string = "timestampNtz", serialize = "timestampWithoutTimezone")]
     #[serde(rename = "timestampNtz", alias = "timestampWithoutTimezone")]
     TimestampWithoutTimezone,
+    /// Float16 primitive datatype
+    #[cfg(feature = "float16")]
+    Float16,
     /// Nanosecond resolution timestamps
     #[cfg(feature = "nanosecond-timestamps")]
     #[strum(serialize = "timestampNanos")]
@@ -208,6 +225,18 @@ pub(crate) enum TableFeature {
     #[strum(serialize = "parquetEncryption-dev")]
     #[serde(rename = "parquetEncryption-dev")]
     ParquetEncryptionDev,
+    #[cfg(feature = "unsigned-integers")]
+    /// Unsigned integer column types (uint8/uint16/uint32/uint64). Experimental: serializes to
+    /// `unsignedIntegerTypes-dev` per the Delta RFC process for in-development features.
+    #[strum(serialize = "unsignedIntegerTypes-dev")]
+    #[serde(rename = "unsignedIntegerTypes-dev")]
+    UnsignedIntegerTypes,
+    #[cfg(feature = "nanosecond-time")]
+    /// Time of day in nanoseconds column type. Experimental: serializes to `timeNanos-dev` per
+    /// the Delta RFC process for in-development features.
+    #[strum(serialize = "timeNanos-dev")]
+    #[serde(rename = "timeNanos-dev")]
+    TimeNanos,
 
     #[serde(untagged)]
     #[strum(default)]
@@ -613,6 +642,15 @@ static DELETION_VECTORS_INFO: FeatureInfo = FeatureInfo {
     }),
 };
 
+#[cfg(feature = "float16")]
+static FLOAT16_INFO: FeatureInfo = FeatureInfo {
+    feature_type: FeatureType::ReaderWriter,
+    min_legacy_version: None,
+    feature_requirements: &[],
+    kernel_support: KernelSupport::Supported,
+    enablement_check: EnablementCheck::AlwaysIfSupported,
+};
+
 static TIMESTAMP_WITHOUT_TIMEZONE_INFO: FeatureInfo = FeatureInfo {
     feature_type: FeatureType::ReaderWriter,
     min_legacy_version: None,
@@ -776,6 +814,24 @@ static PARQUET_ENCRYPTION_DEV_INFO: FeatureInfo = FeatureInfo {
     enablement_check: EnablementCheck::AlwaysIfSupported,
 };
 
+#[cfg(feature = "unsigned-integers")]
+static UNSIGNED_INTEGER_TYPES_INFO: FeatureInfo = FeatureInfo {
+    feature_type: FeatureType::ReaderWriter,
+    min_legacy_version: None,
+    feature_requirements: &[],
+    kernel_support: KernelSupport::Supported,
+    enablement_check: EnablementCheck::AlwaysIfSupported,
+};
+
+#[cfg(feature = "nanosecond-time")]
+static TIME_NANOS_INFO: FeatureInfo = FeatureInfo {
+    feature_type: FeatureType::ReaderWriter,
+    min_legacy_version: None,
+    feature_requirements: &[],
+    kernel_support: KernelSupport::Supported,
+    enablement_check: EnablementCheck::AlwaysIfSupported,
+};
+
 /// By definition, kernel cannot know how to handle unknown features and must assume they're always
 /// enabled if supported in protocol. However, the read path ignores all writer-only features,
 /// including unknown ones. Unknown features are never inferred from legacy protocol versions.
@@ -814,6 +870,12 @@ impl TableFeature {
             | TableFeature::VariantShreddingPreview
             | TableFeature::AdaptiveMetadataPreview
             | TableFeature::GeospatialType => FeatureType::ReaderWriter,
+            #[cfg(feature = "unsigned-integers")]
+            TableFeature::UnsignedIntegerTypes => FeatureType::ReaderWriter,
+            #[cfg(feature = "nanosecond-time")]
+            TableFeature::TimeNanos => FeatureType::ReaderWriter,
+            #[cfg(feature = "float16")]
+            TableFeature::Float16 => FeatureType::ReaderWriter,
             TableFeature::AppendOnly
             | TableFeature::DomainMetadata
             | TableFeature::Invariants
@@ -874,6 +936,8 @@ impl TableFeature {
             TableFeature::ColumnMapping => &COLUMN_MAPPING_INFO,
             TableFeature::DeletionVectors => &DELETION_VECTORS_INFO,
             TableFeature::TimestampWithoutTimezone => &TIMESTAMP_WITHOUT_TIMEZONE_INFO,
+            #[cfg(feature = "float16")]
+            TableFeature::Float16 => &FLOAT16_INFO,
             #[cfg(feature = "nanosecond-timestamps")]
             TableFeature::TimestampNanos => &TIMESTAMP_NANOSECOND_INFO,
             TableFeature::TypeWidening => &TYPE_WIDENING_INFO,
@@ -888,6 +952,10 @@ impl TableFeature {
             TableFeature::GeospatialType => &GEOSPATIAL_TYPE_INFO,
             #[cfg(feature = "parquet-encryption-in-dev")]
             TableFeature::ParquetEncryptionDev => &PARQUET_ENCRYPTION_DEV_INFO,
+            #[cfg(feature = "unsigned-integers")]
+            TableFeature::UnsignedIntegerTypes => &UNSIGNED_INTEGER_TYPES_INFO,
+            #[cfg(feature = "nanosecond-time")]
+            TableFeature::TimeNanos => &TIME_NANOS_INFO,
 
             // Unknown features: not supported by kernel, no legacy version inference.
             TableFeature::Unknown(_) => &UNKNOWN_FEATURE_INFO,
@@ -1270,6 +1338,8 @@ mod tests {
                 TableFeature::ColumnMapping => "columnMapping",
                 TableFeature::DeletionVectors => "deletionVectors",
                 TableFeature::TimestampWithoutTimezone => "timestampNtz",
+                #[cfg(feature = "float16")]
+                TableFeature::Float16 => "float16",
                 #[cfg(feature = "nanosecond-timestamps")]
                 TableFeature::TimestampNanos => "timestampNanos",
                 TableFeature::TypeWidening => "typeWidening",
@@ -1285,6 +1355,10 @@ mod tests {
                 TableFeature::GeospatialType => "geospatial",
                 #[cfg(feature = "parquet-encryption-in-dev")]
                 TableFeature::ParquetEncryptionDev => "parquetEncryption-dev",
+                #[cfg(feature = "unsigned-integers")]
+                TableFeature::UnsignedIntegerTypes => "unsignedIntegerTypes-dev",
+                #[cfg(feature = "nanosecond-time")]
+                TableFeature::TimeNanos => "timeNanos-dev",
                 TableFeature::Unknown(_) => continue, // tested in test_unknown_features
             };
 
@@ -1299,5 +1373,18 @@ mod tests {
             let deserialized: TableFeature = serde_json::from_str(&serialized).unwrap();
             assert_eq!(deserialized, feature);
         }
+    }
+
+    #[cfg(feature = "unsigned-integers")]
+    #[test]
+    fn unsigned_integer_types_feature_name_roundtrips() {
+        let f = TableFeature::UnsignedIntegerTypes;
+        assert_eq!(
+            serde_json::to_value(&f).unwrap(),
+            serde_json::json!("unsignedIntegerTypes-dev")
+        );
+        let de: TableFeature =
+            serde_json::from_value(serde_json::json!("unsignedIntegerTypes-dev")).unwrap();
+        assert_eq!(de, f);
     }
 }

@@ -14,6 +14,10 @@ use delta_kernel::arrow::compute::concat;
 use delta_kernel::arrow::compute::kernels::aggregate::{
     bool_and, max, max_string, min, min_string, sum_checked,
 };
+#[cfg(feature = "float16")]
+use delta_kernel::arrow::datatypes::Float16Type;
+#[cfg(feature = "nanosecond-time")]
+use delta_kernel::arrow::datatypes::Time64NanosecondType;
 use delta_kernel::arrow::datatypes::{
     ArrowPrimitiveType, DataType, Date32Type, Date64Type, Decimal128Type, Field, Float32Type,
     Float64Type, Int16Type, Int32Type, Int64Type, Int8Type, SchemaRef as ArrowSchemaRef, TimeUnit,
@@ -268,6 +272,8 @@ fn compute_leaf_agg(column: &ArrayRef, agg: Agg) -> KernelResult<Option<ArrayRef
         DataType::UInt64 => agg_primitive::<UInt64Type>(column, agg),
 
         // Float types
+        #[cfg(feature = "float16")]
+        DataType::Float16 => agg_primitive::<Float16Type>(column, agg),
         DataType::Float32 => agg_primitive::<Float32Type>(column, agg),
         DataType::Float64 => agg_primitive::<Float64Type>(column, agg),
 
@@ -287,6 +293,11 @@ fn compute_leaf_agg(column: &ArrayRef, agg: Agg) -> KernelResult<Option<ArrayRef
         }
         DataType::Timestamp(TimeUnit::Nanosecond, tz) => {
             agg_timestamp::<TimestampNanosecondType>(column, tz.clone(), agg)
+        }
+
+        #[cfg(feature = "nanosecond-time")]
+        DataType::Time64(TimeUnit::Nanosecond) => {
+            agg_primitive::<Time64NanosecondType>(column, agg)
         }
 
         // Decimal type (preserve precision/scale)

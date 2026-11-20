@@ -1,10 +1,19 @@
 use std::ops::Range;
 
+#[cfg(feature = "float16")]
+use half::f16;
+
 use crate::arrow::array::cast::AsArray;
+#[cfg(feature = "float16")]
+use crate::arrow::array::types::Float16Type;
+#[cfg(feature = "nanosecond-time")]
+use crate::arrow::array::types::Time64NanosecondType;
 use crate::arrow::array::types::{
     Date32Type, Decimal128Type, Float32Type, Float64Type, GenericBinaryType, GenericStringType,
     Int16Type, Int32Type, Int64Type, Int8Type, TimestampMicrosecondType, TimestampNanosecondType,
 };
+#[cfg(feature = "unsigned-integers")]
+use crate::arrow::array::types::{UInt16Type, UInt32Type, UInt64Type, UInt8Type};
 use crate::arrow::array::{
     Array, BinaryViewArray, BooleanArray, GenericByteArray, GenericListArray, GenericListViewArray,
     MapArray, OffsetSizeTrait, PrimitiveArray, RunArray, StringViewArray, StructArray,
@@ -49,6 +58,41 @@ impl GetData<'_> for PrimitiveArray<Int64Type> {
     }
 }
 
+#[cfg(feature = "float16")]
+impl GetData<'_> for PrimitiveArray<Float16Type> {
+    fn get_float16(&self, row_index: usize, _field_name: &str) -> KernelResult<Option<f16>> {
+        Ok(self.is_valid(row_index).then(|| self.value(row_index)))
+    }
+}
+
+#[cfg(feature = "unsigned-integers")]
+impl GetData<'_> for PrimitiveArray<UInt8Type> {
+    fn get_uint8(&self, row_index: usize, _field_name: &str) -> KernelResult<Option<u8>> {
+        Ok(self.is_valid(row_index).then(|| self.value(row_index)))
+    }
+}
+
+#[cfg(feature = "unsigned-integers")]
+impl GetData<'_> for PrimitiveArray<UInt16Type> {
+    fn get_uint16(&self, row_index: usize, _field_name: &str) -> KernelResult<Option<u16>> {
+        Ok(self.is_valid(row_index).then(|| self.value(row_index)))
+    }
+}
+
+#[cfg(feature = "unsigned-integers")]
+impl GetData<'_> for PrimitiveArray<UInt32Type> {
+    fn get_uint32(&self, row_index: usize, _field_name: &str) -> KernelResult<Option<u32>> {
+        Ok(self.is_valid(row_index).then(|| self.value(row_index)))
+    }
+}
+
+#[cfg(feature = "unsigned-integers")]
+impl GetData<'_> for PrimitiveArray<UInt64Type> {
+    fn get_uint64(&self, row_index: usize, _field_name: &str) -> KernelResult<Option<u64>> {
+        Ok(self.is_valid(row_index).then(|| self.value(row_index)))
+    }
+}
+
 impl GetData<'_> for PrimitiveArray<Float32Type> {
     fn get_float(&self, row_index: usize, _field_name: &str) -> KernelResult<Option<f32>> {
         Ok(self.is_valid(row_index).then(|| self.value(row_index)))
@@ -75,6 +119,13 @@ impl GetData<'_> for PrimitiveArray<TimestampMicrosecondType> {
 
 impl GetData<'_> for PrimitiveArray<TimestampNanosecondType> {
     fn get_timestamp(&self, row_index: usize, _field_name: &str) -> KernelResult<Option<i64>> {
+        Ok(self.is_valid(row_index).then(|| self.value(row_index)))
+    }
+}
+
+#[cfg(feature = "nanosecond-time")]
+impl GetData<'_> for PrimitiveArray<Time64NanosecondType> {
+    fn get_long(&self, row_index: usize, _field_name: &str) -> KernelResult<Option<i64>> {
         Ok(self.is_valid(row_index).then(|| self.value(row_index)))
     }
 }
@@ -336,6 +387,70 @@ impl<'a> GetData<'a> for RunArray<Int64Type> {
         Ok((!values.is_null(physical_idx)).then(|| values.value(physical_idx)))
     }
 
+    #[cfg(feature = "unsigned-integers")]
+    fn get_uint8(&'a self, row_index: usize, field_name: &str) -> KernelResult<Option<u8>> {
+        let physical_idx = validate_and_get_physical_index(self, row_index, field_name)?;
+        let values = self
+            .values()
+            .as_primitive_opt::<UInt8Type>()
+            .ok_or_else(|| {
+                KernelError::generic(format!(
+                    "Expected UInt8Array values in RunArray, got {:?}",
+                    self.values().data_type()
+                ))
+            })?;
+
+        Ok((!values.is_null(physical_idx)).then(|| values.value(physical_idx)))
+    }
+
+    #[cfg(feature = "unsigned-integers")]
+    fn get_uint16(&'a self, row_index: usize, field_name: &str) -> KernelResult<Option<u16>> {
+        let physical_idx = validate_and_get_physical_index(self, row_index, field_name)?;
+        let values = self
+            .values()
+            .as_primitive_opt::<UInt16Type>()
+            .ok_or_else(|| {
+                KernelError::generic(format!(
+                    "Expected UInt16Array values in RunArray, got {:?}",
+                    self.values().data_type()
+                ))
+            })?;
+
+        Ok((!values.is_null(physical_idx)).then(|| values.value(physical_idx)))
+    }
+
+    #[cfg(feature = "unsigned-integers")]
+    fn get_uint32(&'a self, row_index: usize, field_name: &str) -> KernelResult<Option<u32>> {
+        let physical_idx = validate_and_get_physical_index(self, row_index, field_name)?;
+        let values = self
+            .values()
+            .as_primitive_opt::<UInt32Type>()
+            .ok_or_else(|| {
+                KernelError::generic(format!(
+                    "Expected UInt32Array values in RunArray, got {:?}",
+                    self.values().data_type()
+                ))
+            })?;
+
+        Ok((!values.is_null(physical_idx)).then(|| values.value(physical_idx)))
+    }
+
+    #[cfg(feature = "unsigned-integers")]
+    fn get_uint64(&'a self, row_index: usize, field_name: &str) -> KernelResult<Option<u64>> {
+        let physical_idx = validate_and_get_physical_index(self, row_index, field_name)?;
+        let values = self
+            .values()
+            .as_primitive_opt::<UInt64Type>()
+            .ok_or_else(|| {
+                KernelError::generic(format!(
+                    "Expected UInt64Array values in RunArray, got {:?}",
+                    self.values().data_type()
+                ))
+            })?;
+
+        Ok((!values.is_null(physical_idx)).then(|| values.value(physical_idx)))
+    }
+
     fn get_bool(&'a self, row_index: usize, field_name: &str) -> KernelResult<Option<bool>> {
         let physical_idx = validate_and_get_physical_index(self, row_index, field_name)?;
         let values = self.values().as_boolean_opt().ok_or_else(|| {
@@ -367,9 +482,13 @@ impl<'a> GetData<'a> for RunArray<Int64Type> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "float16")]
+    use half::f16;
     use rstest::rstest;
 
     use super::*;
+    #[cfg(feature = "float16")]
+    use crate::arrow::array::Float16Array;
     use crate::arrow::array::{
         BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
         LargeBinaryArray, LargeStringArray, ListArray, ListBuilder, PrimitiveArray, StringBuilder,
@@ -422,6 +541,35 @@ mod tests {
         assert_eq!(array.get_long(0, "f").unwrap(), Some(i64::MAX));
         assert_eq!(array.get_long(1, "f").unwrap(), Some(i64::MIN));
         assert_eq!(array.get_long(2, "f").unwrap(), None);
+    }
+
+    #[cfg(feature = "float16")]
+    #[test]
+    fn test_get_float16() {
+        let array = Float16Array::from(vec![
+            Some(f16::from_f32(1.5)),
+            Some(f16::from_f32(-0.0)),
+            None,
+        ]);
+        assert_eq!(array.get_float16(0, "f").unwrap(), Some(f16::from_f32(1.5)));
+        assert_eq!(
+            array.get_float16(1, "f").unwrap(),
+            Some(f16::from_f32(-0.0))
+        );
+        assert_eq!(array.get_float16(2, "f").unwrap(), None);
+    }
+
+    #[cfg(feature = "float16")]
+    #[test]
+    fn test_get_float16_special_values() {
+        let array = Float16Array::from(vec![
+            Some(f16::NAN),
+            Some(f16::INFINITY),
+            Some(f16::NEG_INFINITY),
+        ]);
+        assert!(array.get_float16(0, "f").unwrap().unwrap().is_nan());
+        assert_eq!(array.get_float16(1, "f").unwrap(), Some(f16::INFINITY));
+        assert_eq!(array.get_float16(2, "f").unwrap(), Some(f16::NEG_INFINITY));
     }
 
     #[test]
@@ -484,6 +632,15 @@ mod tests {
         assert_eq!(array.get_timestamp(0, "f").unwrap(), Some(1_000_000));
         assert_eq!(array.get_timestamp(1, "f").unwrap(), Some(-1_000_000));
         assert_eq!(array.get_timestamp(2, "f").unwrap(), None);
+    }
+
+    #[cfg(feature = "nanosecond-time")]
+    #[test]
+    fn test_get_time_nanos() {
+        let array =
+            PrimitiveArray::<Time64NanosecondType>::from(vec![Some(47_167_123_456_789), None]);
+        assert_eq!(array.get_long(0, "f").unwrap(), Some(47_167_123_456_789));
+        assert_eq!(array.get_long(1, "f").unwrap(), None);
     }
 
     #[cfg(feature = "nanosecond-timestamps")]

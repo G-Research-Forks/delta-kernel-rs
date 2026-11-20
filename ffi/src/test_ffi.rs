@@ -16,6 +16,8 @@ use delta_kernel::kernel_predicates::{
 };
 use delta_kernel::schema::{ArrayType, DataType, MapType, StructField, StructType};
 use delta_kernel::KernelResult;
+#[cfg(feature = "float16")]
+use half::f16;
 
 use crate::expressions::{SharedExpression, SharedPredicate};
 use crate::handle::Handle;
@@ -132,6 +134,18 @@ pub unsafe extern "C" fn get_testing_kernel_expression() -> Handle<SharedExpress
         col!("col"),
         lit(i8::MAX),
         lit(i8::MIN),
+        #[cfg(feature = "float16")]
+        lit(f16::MAX),
+        #[cfg(feature = "float16")]
+        lit(f16::MIN),
+        #[cfg(feature = "unsigned-integers")]
+        lit(u8::MAX),
+        #[cfg(feature = "unsigned-integers")]
+        lit(u16::MAX),
+        #[cfg(feature = "unsigned-integers")]
+        lit(u32::MAX),
+        #[cfg(feature = "unsigned-integers")]
+        lit(u64::MAX),
         lit(f32::MAX),
         lit(f32::MIN),
         lit(f64::MAX),
@@ -145,6 +159,10 @@ pub unsafe extern "C" fn get_testing_kernel_expression() -> Handle<SharedExpress
         lit(false),
         lit(Scalar::Timestamp(50)),
         lit(Scalar::TimestampNtz(100)),
+        #[cfg(feature = "nanosecond-timestamps")]
+        lit(Scalar::TimestampNanos(150)),
+        #[cfg(feature = "nanosecond-timestamps")]
+        lit(Scalar::TimestampNanosNtz(200)),
         lit(Scalar::Date(32)),
         lit(0x0000deadbeefcafeu64.to_be_bytes().to_vec()),
         // Both the most and least significant u64 of the Decimal value will be 1
@@ -244,12 +262,20 @@ pub unsafe extern "C" fn get_simple_testing_kernel_expression() -> Handle<Shared
         lit(42i32),
         lit(100i64),
         lit(2.5f64), // Using 2.5 to avoid clippy::approx_constant warning
+        #[cfg(feature = "float16")]
+        lit(f16::from_f32(2.5)),
+        #[cfg(feature = "unsigned-integers")]
+        lit(u64::MAX),
         lit(true),
         lit(false),
         lit("test string"),
         lit(Scalar::Date(19000)),
         lit(Scalar::Timestamp(1234567890)),
         lit(Scalar::TimestampNtz(9876543210)),
+        #[cfg(feature = "nanosecond-timestamps")]
+        lit(Scalar::TimestampNanos(1_234_567_890_123_456_789)),
+        #[cfg(feature = "nanosecond-timestamps")]
+        lit(Scalar::TimestampNanosNtz(-987_654_321)),
         lit(Scalar::IntervalYearMonth(-13)),
         lit(Scalar::IntervalDayTime(9_876_543_210)),
         null_lit(DataType::INTEGER),

@@ -239,9 +239,9 @@ jobs:
       - name: lint without default features - packages which don't depend on kernel with features enabled
         run: cargo clippy-no-default-kernel-leaves
       - name: check kernel declarative-plans feature-only build
-        run: cargo check --locked -p delta_kernel --no-default-features --features declarative-plans,vendored-protoc
+        run: cargo check --locked -p buoyant_kernel --no-default-features --features declarative-plans,vendored-protoc
       - name: lint kernel declarative-plans feature-only build
-        run: cargo clippy --locked -p delta_kernel --no-default-features --features declarative-plans,vendored-protoc --tests -- -D warnings
+        run: cargo clippy --locked -p buoyant_kernel --no-default-features --features declarative-plans,vendored-protoc --tests -- -D warnings
       - name: check kernel builds with default-engine-native-tls
         run: cargo build --locked -p feature_tests --features default-engine-native-tls
       - name: test native-tls backend has no crypto provider conflict
@@ -272,6 +272,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        if: false
         id: filter
         with:
           filters: |
@@ -306,8 +307,8 @@ jobs:
         if: matrix.config == 'no-declarative-plans'
         shell: bash
         run: |
-          cargo nextest run --locked -p delta_kernel -p acceptance --no-default-features --features internal-api,prettyprint,test-utils,integration-test,arrow,arrow-conversion,arrow-expression,schema-diff,check-constraints-in-dev,adaptive-metadata-in-dev,parquet-encryption-in-dev,default-engine-base -E 'not test(read_table_version_hdfs) and not test(invalid_handle_code)'
-          cargo test --locked -p delta_kernel -p acceptance --no-default-features --features internal-api,prettyprint,test-utils,integration-test,arrow,arrow-conversion,arrow-expression,schema-diff,check-constraints-in-dev,adaptive-metadata-in-dev,parquet-encryption-in-dev,default-engine-base --doc
+          cargo nextest run --locked -p buoyant_kernel -p acceptance --no-default-features --features internal-api,prettyprint,test-utils,integration-test,arrow,arrow-conversion,arrow-expression,schema-diff,check-constraints-in-dev,adaptive-metadata-in-dev,parquet-encryption-in-dev,default-engine-base -E 'not test(read_table_version_hdfs) and not test(invalid_handle_code)'
+          cargo test --locked -p buoyant_kernel -p acceptance --no-default-features --features internal-api,prettyprint,test-utils,integration-test,arrow,arrow-conversion,arrow-expression,schema-diff,check-constraints-in-dev,adaptive-metadata-in-dev,parquet-encryption-in-dev,default-engine-base --doc
 
   # Fails red on trybuild drift, but kept out of required checks so it never blocks a merge.
   invalid-handle-code:
@@ -383,7 +384,7 @@ jobs:
           cargo build --locked
           popd
           pushd ffi
-          cargo build --locked --features default-engine-rustls,test-ffi,tracing,delta-kernel-unity-catalog,geo-type-in-dev,udt-in-dev,parquet-encryption-in-dev
+          cargo build --locked --features default-engine-rustls,test-ffi,tracing,delta-kernel-unity-catalog,geo-type-in-dev,udt-in-dev,parquet-encryption-in-dev,nanosecond-timestamps
           popd
       - name: build and run read-table test
         run: |
@@ -496,6 +497,7 @@ jobs:
       - name: Generate code coverage
         run: cargo llvm-cov --locked --all-features --workspace --codecov --output-path codecov.json -- --skip read_table_version_hdfs --skip handle::tests::invalid_handle_code
       - name: Upload coverage to Codecov
+        if: false
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: codecov.json

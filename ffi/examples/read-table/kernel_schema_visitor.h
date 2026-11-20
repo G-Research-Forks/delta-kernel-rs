@@ -73,6 +73,16 @@ uintptr_t visit_schema_item(SchemaItem* item, KernelSchemaVisitorState *state, C
     visit_res = visit_field_byte(state, name, item->is_nullable, &metadata, allocate_error);
   } else if (strcmp(item->type, "long") == 0) {
     visit_res = visit_field_long(state, name, item->is_nullable, &metadata, allocate_error);
+#ifdef DEFINE_UNSIGNED_INTEGERS
+  } else if (strcmp(item->type, "uint8") == 0) {
+    visit_res = visit_field_uint8(state, name, item->is_nullable, &metadata, allocate_error);
+  } else if (strcmp(item->type, "uint16") == 0) {
+    visit_res = visit_field_uint16(state, name, item->is_nullable, &metadata, allocate_error);
+  } else if (strcmp(item->type, "uint32") == 0) {
+    visit_res = visit_field_uint32(state, name, item->is_nullable, &metadata, allocate_error);
+  } else if (strcmp(item->type, "uint64") == 0) {
+    visit_res = visit_field_uint64(state, name, item->is_nullable, &metadata, allocate_error);
+#endif
   } else if (strcmp(item->type, "float") == 0) {
     visit_res = visit_field_float(state, name, item->is_nullable, &metadata, allocate_error);
   } else if (strcmp(item->type, "double") == 0) {
@@ -87,6 +97,12 @@ uintptr_t visit_schema_item(SchemaItem* item, KernelSchemaVisitorState *state, C
     visit_res = visit_field_timestamp(state, name, item->is_nullable, &metadata, allocate_error);
   } else if (strcmp(item->type, "timestamp_ntz") == 0) {
     visit_res = visit_field_timestamp_ntz(state, name, item->is_nullable, &metadata, allocate_error);
+  } else if (strcmp(item->type, "timestamp_nanos") == 0) {
+    visit_res = visit_field_timestamp_nanos(state, name, item->is_nullable, &metadata, allocate_error);
+  } else if (strcmp(item->type, "timestamp_nanos_ntz") == 0) {
+    visit_res = visit_field_timestamp_nanos_ntz(state, name, item->is_nullable, &metadata, allocate_error);
+  } else if (strcmp(item->type, "time_nanos") == 0) {
+    visit_res = visit_field_time_nanos(state, name, item->is_nullable, &metadata, allocate_error);
   } else if (strcmp(item->type, "interval year to month") == 0) {
     visit_res = visit_field_interval_year_month(state, name, item->is_nullable, &metadata, allocate_error);
   } else if (strcmp(item->type, "interval day to second") == 0) {

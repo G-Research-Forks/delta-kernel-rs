@@ -4,6 +4,8 @@ use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Days};
 use delta_kernel_derive::internal_api;
+#[cfg(feature = "float16")]
+use half::f16;
 use tracing::debug;
 
 use crate::actions::{MAX_VALUES, MIN_VALUES, NULL_COUNT};
@@ -11,9 +13,10 @@ use crate::engine::arrow_utils::RowIndexBuilder;
 use crate::expressions::{ColumnName, DecimalData, Predicate, Scalar};
 use crate::kernel_predicates::parquet_stats_skipping::ParquetStatsProvider;
 use crate::parquet::arrow::arrow_reader::ArrowReaderBuilder;
-use crate::parquet::file::metadata::RowGroupMetaData;
+use crate::parquet::basic::{ConvertedType, LogicalType, TimeUnit};
+use crate::parquet::file::metadata::{ColumnChunkMetaData, RowGroupMetaData};
 use crate::parquet::file::statistics::Statistics;
-use crate::parquet::schema::types::ColumnDescPtr;
+use crate::parquet::schema::types::{ColumnDescPtr, ColumnDescriptor};
 use crate::schema::{DataType, DecimalType, PrimitiveType};
 
 #[cfg(test)]
@@ -27,6 +30,10 @@ pub(crate) trait ParquetRowGroupSkipping {
     ///
     /// If a [`RowIndexBuilder`] is provided, it will be updated to only include row indices of the
     /// row groups that survived the filter.
+    ///
+    /// Build the reader with [`crate::engine::reader_options`] (or equivalent options that ignore
+    /// embedded Arrow schema metadata) and cast timestamp output to Kernel's microsecond types.
+    /// Footer timestamp units come from Parquet annotations and must agree with decoded values.
     fn with_row_group_filter(
         self,
         predicate: &Predicate,
@@ -43,6 +50,9 @@ pub(crate) trait ParquetRowGroupSkipping {
     /// Statistics for data columns are null-guarded: if a stat column contains any null values
     /// in the row group (indicating some files lack that statistic), the stat is treated as
     /// unavailable to prevent false pruning.
+    ///
+    /// The reader must satisfy the options and timestamp-cast requirements of
+    /// [`Self::with_row_group_filter`].
     // TODO: remove #[allow(dead_code)] once production callers land
     #[allow(dead_code)]
     fn with_checkpoint_row_group_filter(
@@ -122,28 +132,28 @@ impl<'a> RowGroupFilter<'a> {
         RowGroupFilter::new(row_group, predicate).eval_sql_where(predicate) != Some(false)
     }
 
-    /// Returns `None` if the column doesn't exist and `Some(None)` if the column has no stats.
-    fn get_stats(&self, col: &ColumnName) -> Option<Option<&Statistics>> {
+    /// Returns the column chunk metadata, or `None` if the column doesn't exist.
+    fn get_column(&self, col: &ColumnName) -> Option<&ColumnChunkMetaData> {
         self.field_indices
             .get(col)
-            .map(|&i| self.row_group.column(i).statistics())
+            .map(|&i| self.row_group.column(i))
     }
 }
 
 impl ParquetStatsProvider for RowGroupFilter<'_> {
     fn get_parquet_min_stat(&self, col: &ColumnName, data_type: &DataType) -> Option<Scalar> {
-        extract_min_scalar(data_type, self.get_stats(col)??)
+        extract_min_scalar(data_type, self.get_column(col)?)
     }
 
     fn get_parquet_max_stat(&self, col: &ColumnName, data_type: &DataType) -> Option<Scalar> {
-        extract_max_scalar(data_type, self.get_stats(col)??)
+        extract_max_scalar(data_type, self.get_column(col)?)
     }
 
     fn get_parquet_nullcount_stat(&self, col: &ColumnName) -> Option<i64> {
         // NOTE: Stats for any given column are optional, which may produce a NULL nullcount. But if
         // the column itself is missing, then we know all values are implied to be NULL.
         //
-        let Some(stats) = self.get_stats(col) else {
+        let Some(column) = self.get_column(col) else {
             // WARNING: This optimization is only sound if the caller has verified that the column
             // actually exists in the table's logical schema, and that any necessary logical to
             // physical name mapping has been performed. Because we currently lack both the
@@ -152,7 +162,7 @@ impl ParquetStatsProvider for RowGroupFilter<'_> {
             return self.get_parquet_rowcount_stat().filter(|_| false);
         };
 
-        extract_nullcount(stats)
+        extract_nullcount(column.statistics())
     }
 
     fn get_parquet_rowcount_stat(&self) -> Option<i64> {
@@ -160,11 +170,12 @@ impl ParquetStatsProvider for RowGroupFilter<'_> {
     }
 }
 
-/// Extracts the minimum stat value from parquet footer statistics, converting from the physical
-/// parquet type to the requested logical Delta type.
-fn extract_min_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar> {
+/// Extracts the minimum stat value from a parquet column chunk, converting from the physical
+/// parquet type to the requested logical Delta type. INT64 timestamp stats are rescaled to
+/// the requested timestamp unit using the column's Parquet annotation.
+fn extract_min_scalar(data_type: &DataType, column: &ColumnChunkMetaData) -> Option<Scalar> {
     use PrimitiveType::*;
-    let value = match (data_type.as_primitive_opt()?, stats) {
+    let value = match (data_type.as_primitive_opt()?, column.statistics()?) {
         (String, Statistics::ByteArray(s)) => s.min_opt()?.as_utf8().ok()?.into(),
         (String, Statistics::FixedLenByteArray(s)) => s.min_opt()?.as_utf8().ok()?.into(),
         (String, _) => return None,
@@ -177,6 +188,19 @@ fn extract_min_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar
         (Short, _) => return None,
         (Byte, Statistics::Int32(s)) => (*s.min_opt()? as i8).into(),
         (Byte, _) => return None,
+        // Deprecated min/max fields were ordered by raw bytes, which is wrong for IEEE half
+        // floats, and an unannotated FLBA(2) column holds no float16 ordering at all.
+        #[cfg(feature = "float16")]
+        (Float16, s)
+            if s.is_min_max_deprecated()
+                || column.column_descr().logical_type_ref() != Some(&LogicalType::Float16) =>
+        {
+            return None
+        }
+        #[cfg(feature = "float16")]
+        (Float16, Statistics::FixedLenByteArray(b)) => float16_from_bytes(b.min_bytes_opt())?,
+        #[cfg(feature = "float16")]
+        (Float16, _) => return None,
         (Float, Statistics::Float(s)) => s.min_opt()?.into(),
         (Float, _) => return None,
         (Double, Statistics::Double(s)) => s.min_opt()?.into(),
@@ -190,16 +214,33 @@ fn extract_min_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar
         (Date, Statistics::Int32(s)) => Scalar::Date(*s.min_opt()?),
         (Date, _) => return None,
         #[cfg(feature = "nanosecond-timestamps")]
-        (TimestampNanos, Statistics::Int64(s)) => Scalar::TimestampNanos(*s.min_opt()?),
+        (TimestampNanos, Statistics::Int64(s)) => Scalar::TimestampNanos(timestamp_stat_as_nanos(
+            *s.min_opt()?,
+            column.column_descr(),
+        )?),
         #[cfg(feature = "nanosecond-timestamps")]
         (TimestampNanos, _) => return None,
         #[cfg(feature = "nanosecond-timestamps")]
-        (TimestampNanosNtz, Statistics::Int64(s)) => Scalar::TimestampNanosNtz(*s.min_opt()?),
+        (TimestampNanosNtz, Statistics::Int64(s)) => Scalar::TimestampNanosNtz(
+            timestamp_stat_as_nanos(*s.min_opt()?, column.column_descr())?,
+        ),
         #[cfg(feature = "nanosecond-timestamps")]
         (TimestampNanosNtz, _) => return None,
-        (Timestamp, Statistics::Int64(s)) => Scalar::Timestamp(*s.min_opt()?),
+        #[cfg(feature = "nanosecond-time")]
+        (TimeNanos, Statistics::Int64(s)) if is_nanos_time_column(column.column_descr()) => {
+            Scalar::TimeNanos(*s.min_opt()?)
+        }
+        #[cfg(feature = "nanosecond-time")]
+        (TimeNanos, _) => return None,
+        (Timestamp, Statistics::Int64(s)) => Scalar::Timestamp(timestamp_stat_as_micros(
+            *s.min_opt()?,
+            column.column_descr(),
+        )?),
         (Timestamp, _) => return None, // TODO: Int96 timestamps
-        (TimestampNtz, Statistics::Int64(s)) => Scalar::TimestampNtz(*s.min_opt()?),
+        (TimestampNtz, Statistics::Int64(s)) => Scalar::TimestampNtz(timestamp_stat_as_micros(
+            *s.min_opt()?,
+            column.column_descr(),
+        )?),
         (TimestampNtz, Statistics::Int32(s)) => timestamp_from_date(s.min_opt())?,
         (TimestampNtz, _) => return None, // TODO: Int96 timestamps
         (IntervalYearMonth | IntervalDayTime, _) => return None,
@@ -213,15 +254,33 @@ fn extract_min_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar
         (Void, _) => return None,
         #[cfg(feature = "geo-type-in-dev")]
         (Geometry(_) | Geography(_), _) => return None,
+        // Unsigned ints are stored as physical Int32/Int64 with an unsigned logical type, and
+        // parquet computes their min/max with unsigned sort order. parquet-rs reports the stat as
+        // the physical signed value, so we reinterpret the bits back to unsigned. Stats from the
+        // deprecated min/max fields were computed with signed ordering by older writers, so they
+        // cannot be trusted for unsigned columns.
+        #[cfg(feature = "unsigned-integers")]
+        (Uint8 | Uint16 | Uint32 | Uint64, s) if s.is_min_max_deprecated() => return None,
+        #[cfg(feature = "unsigned-integers")]
+        (Uint8, Statistics::Int32(s)) => (*s.min_opt()? as i8 as u8).into(),
+        #[cfg(feature = "unsigned-integers")]
+        (Uint16, Statistics::Int32(s)) => (*s.min_opt()? as i16 as u16).into(),
+        #[cfg(feature = "unsigned-integers")]
+        (Uint32, Statistics::Int32(s)) => (*s.min_opt()? as u32).into(),
+        #[cfg(feature = "unsigned-integers")]
+        (Uint64, Statistics::Int64(s)) => (*s.min_opt()? as u64).into(),
+        #[cfg(feature = "unsigned-integers")]
+        (Uint8 | Uint16 | Uint32 | Uint64, _) => return None,
     };
     Some(value)
 }
 
-/// Extracts the maximum stat value from parquet footer statistics, converting from the physical
-/// parquet type to the requested logical Delta type.
-fn extract_max_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar> {
+/// Extracts the maximum stat value from a parquet column chunk, converting from the physical
+/// parquet type to the requested logical Delta type. INT64 timestamp stats are rescaled to
+/// the requested timestamp unit using the column's Parquet annotation.
+fn extract_max_scalar(data_type: &DataType, column: &ColumnChunkMetaData) -> Option<Scalar> {
     use PrimitiveType::*;
-    let value = match (data_type.as_primitive_opt()?, stats) {
+    let value = match (data_type.as_primitive_opt()?, column.statistics()?) {
         (String, Statistics::ByteArray(s)) => s.max_opt()?.as_utf8().ok()?.into(),
         (String, Statistics::FixedLenByteArray(s)) => s.max_opt()?.as_utf8().ok()?.into(),
         (String, _) => return None,
@@ -234,6 +293,19 @@ fn extract_max_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar
         (Short, _) => return None,
         (Byte, Statistics::Int32(s)) => (*s.max_opt()? as i8).into(),
         (Byte, _) => return None,
+        // Deprecated min/max fields were ordered by raw bytes, which is wrong for IEEE half
+        // floats, and an unannotated FLBA(2) column holds no float16 ordering at all.
+        #[cfg(feature = "float16")]
+        (Float16, s)
+            if s.is_min_max_deprecated()
+                || column.column_descr().logical_type_ref() != Some(&LogicalType::Float16) =>
+        {
+            return None
+        }
+        #[cfg(feature = "float16")]
+        (Float16, Statistics::FixedLenByteArray(b)) => float16_from_bytes(b.max_bytes_opt())?,
+        #[cfg(feature = "float16")]
+        (Float16, _) => return None,
         (Float, Statistics::Float(s)) => s.max_opt()?.into(),
         (Float, _) => return None,
         (Double, Statistics::Double(s)) => s.max_opt()?.into(),
@@ -247,16 +319,33 @@ fn extract_max_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar
         (Date, Statistics::Int32(s)) => Scalar::Date(*s.max_opt()?),
         (Date, _) => return None,
         #[cfg(feature = "nanosecond-timestamps")]
-        (TimestampNanos, Statistics::Int64(s)) => Scalar::TimestampNanos(*s.max_opt()?),
+        (TimestampNanos, Statistics::Int64(s)) => Scalar::TimestampNanos(timestamp_stat_as_nanos(
+            *s.max_opt()?,
+            column.column_descr(),
+        )?),
         #[cfg(feature = "nanosecond-timestamps")]
         (TimestampNanos, _) => return None,
         #[cfg(feature = "nanosecond-timestamps")]
-        (TimestampNanosNtz, Statistics::Int64(s)) => Scalar::TimestampNanosNtz(*s.max_opt()?),
+        (TimestampNanosNtz, Statistics::Int64(s)) => Scalar::TimestampNanosNtz(
+            timestamp_stat_as_nanos(*s.max_opt()?, column.column_descr())?,
+        ),
         #[cfg(feature = "nanosecond-timestamps")]
         (TimestampNanosNtz, _) => return None,
-        (Timestamp, Statistics::Int64(s)) => Scalar::Timestamp(*s.max_opt()?),
+        #[cfg(feature = "nanosecond-time")]
+        (TimeNanos, Statistics::Int64(s)) if is_nanos_time_column(column.column_descr()) => {
+            Scalar::TimeNanos(*s.max_opt()?)
+        }
+        #[cfg(feature = "nanosecond-time")]
+        (TimeNanos, _) => return None,
+        (Timestamp, Statistics::Int64(s)) => Scalar::Timestamp(timestamp_stat_as_micros(
+            *s.max_opt()?,
+            column.column_descr(),
+        )?),
         (Timestamp, _) => return None, // TODO: Int96 timestamps
-        (TimestampNtz, Statistics::Int64(s)) => Scalar::TimestampNtz(*s.max_opt()?),
+        (TimestampNtz, Statistics::Int64(s)) => Scalar::TimestampNtz(timestamp_stat_as_micros(
+            *s.max_opt()?,
+            column.column_descr(),
+        )?),
         (TimestampNtz, Statistics::Int32(s)) => timestamp_from_date(s.max_opt())?,
         (TimestampNtz, _) => return None, // TODO: Int96 timestamps
         (IntervalYearMonth | IntervalDayTime, _) => return None,
@@ -270,6 +359,23 @@ fn extract_max_scalar(data_type: &DataType, stats: &Statistics) -> Option<Scalar
         (Void, _) => return None,
         #[cfg(feature = "geo-type-in-dev")]
         (Geometry(_) | Geography(_), _) => return None,
+        // Unsigned ints are stored as physical Int32/Int64 with an unsigned logical type, and
+        // parquet computes their min/max with unsigned sort order. parquet-rs reports the stat as
+        // the physical signed value, so we reinterpret the bits back to unsigned. Stats from the
+        // deprecated min/max fields were computed with signed ordering by older writers, so they
+        // cannot be trusted for unsigned columns.
+        #[cfg(feature = "unsigned-integers")]
+        (Uint8 | Uint16 | Uint32 | Uint64, s) if s.is_min_max_deprecated() => return None,
+        #[cfg(feature = "unsigned-integers")]
+        (Uint8, Statistics::Int32(s)) => (*s.max_opt()? as i8 as u8).into(),
+        #[cfg(feature = "unsigned-integers")]
+        (Uint16, Statistics::Int32(s)) => (*s.max_opt()? as i16 as u16).into(),
+        #[cfg(feature = "unsigned-integers")]
+        (Uint32, Statistics::Int32(s)) => (*s.max_opt()? as u32).into(),
+        #[cfg(feature = "unsigned-integers")]
+        (Uint64, Statistics::Int64(s)) => (*s.max_opt()? as u64).into(),
+        #[cfg(feature = "unsigned-integers")]
+        (Uint8 | Uint16 | Uint32 | Uint64, _) => return None,
     };
     Some(value)
 }
@@ -302,6 +408,75 @@ fn timestamp_from_date(days: Option<&i32>) -> Option<Scalar> {
     let timestamp = DateTime::UNIX_EPOCH.checked_add_days(Days::new(days))?;
     let timestamp = timestamp.signed_duration_since(DateTime::UNIX_EPOCH);
     Some(Scalar::TimestampNtz(timestamp.num_microseconds()?))
+}
+
+/// Converts an INT64 footer timestamp bound to the microsecond value the reader returns.
+///
+/// Requires the metadata policy from [`crate::engine::reader_options`]: parquet-rs derives the
+/// decoded source type from Parquet annotations, ignoring the embedded Arrow schema. Bounds must
+/// match Arrow's cast to microseconds, allowed by `check_cast_compat` in
+/// `engine/ensure_data_types.rs`; unannotated INT64 values are reinterpreted as microseconds.
+///
+/// Returns `None` for non-timestamp annotations or scaling overflow, so that bound cannot justify
+/// skipping a row group.
+fn timestamp_stat_as_micros(value: i64, column: &ColumnDescriptor) -> Option<i64> {
+    let unit = match timestamp_stat_unit(column) {
+        Some(unit) => unit,
+        None if column.logical_type_ref().is_none()
+            && column.converted_type() == ConvertedType::NONE =>
+        {
+            TimeUnit::MICROS
+        }
+        None => return None,
+    };
+    match unit {
+        TimeUnit::MILLIS => value.checked_mul(1_000),
+        TimeUnit::MICROS => Some(value),
+        // Match the reader's microsecond cast, which truncates toward zero even for negatives.
+        // Pruning could drop matching rows if predicates were evaluated at nanosecond
+        // precision.
+        TimeUnit::NANOS => Some(value / 1_000),
+    }
+}
+
+/// Converts an INT64 footer timestamp bound to the nanosecond value the reader returns.
+///
+/// The counterpart of [`timestamp_stat_as_micros`] for nanosecond read types, with the same
+/// metadata policy requirement. Rescaling to nanoseconds is exact, so only overflow is lossy.
+///
+/// Returns `None` for non-timestamp or missing annotations, or scaling overflow.
+#[cfg(feature = "nanosecond-timestamps")]
+fn timestamp_stat_as_nanos(value: i64, column: &ColumnDescriptor) -> Option<i64> {
+    match timestamp_stat_unit(column)? {
+        TimeUnit::MILLIS => value.checked_mul(1_000_000),
+        TimeUnit::MICROS => value.checked_mul(1_000),
+        TimeUnit::NANOS => Some(value),
+    }
+}
+
+/// Returns the unit of an INT64 column's timestamp annotation, from its logical type or legacy
+/// converted type. Returns `None` for unannotated columns and non-timestamp annotations.
+fn timestamp_stat_unit(column: &ColumnDescriptor) -> Option<TimeUnit> {
+    match column.logical_type_ref() {
+        Some(LogicalType::Timestamp(timestamp)) => Some(timestamp.unit),
+        Some(_) => None,
+        None => match column.converted_type() {
+            ConvertedType::TIMESTAMP_MILLIS => Some(TimeUnit::MILLIS),
+            ConvertedType::TIMESTAMP_MICROS => Some(TimeUnit::MICROS),
+            _ => None,
+        },
+    }
+}
+
+/// Returns whether a column is annotated as a nanosecond TIME, the only encoding whose footer stats
+/// are in the units of the `time(9)` read type. Any other annotation, or none, means the stats
+/// cannot be compared against nanosecond predicate values.
+#[cfg(feature = "nanosecond-time")]
+fn is_nanos_time_column(column: &ColumnDescriptor) -> bool {
+    matches!(
+        column.logical_type_ref(),
+        Some(LogicalType::Time(time)) if time.unit == TimeUnit::NANOS
+    )
 }
 
 /// Checks whether a parquet column has any null values in a row group, based on its footer stats.
@@ -412,7 +587,7 @@ impl<'a> CheckpointRowGroupFilter<'a> {
         col: &ColumnName,
         data_type: &DataType,
         get_index: impl FnOnce(&StatsColumnIndices) -> Option<usize>,
-        extract: impl FnOnce(&DataType, &Statistics) -> Option<Scalar>,
+        extract: impl FnOnce(&DataType, &ColumnChunkMetaData) -> Option<Scalar>,
     ) -> Option<Scalar> {
         let indices = self.stats_column_indices.get(col)?;
         let stat_index = get_index(indices)?;
@@ -421,7 +596,7 @@ impl<'a> CheckpointRowGroupFilter<'a> {
         if column_has_nulls(self.row_group, stat_index) {
             return None;
         }
-        extract(data_type, self.get_stats_at(stat_index)?)
+        extract(data_type, self.row_group.column(stat_index))
     }
 }
 
@@ -429,7 +604,7 @@ impl ParquetStatsProvider for CheckpointRowGroupFilter<'_> {
     fn get_parquet_min_stat(&self, col: &ColumnName, data_type: &DataType) -> Option<Scalar> {
         if is_top_level_partition_column(col, self.partition_columns) {
             let &idx = self.partition_column_indices.get(col)?;
-            return extract_min_scalar(data_type, self.get_stats_at(idx)?);
+            return extract_min_scalar(data_type, self.row_group.column(idx));
         }
         self.get_guarded_stat(col, data_type, |i| i.min_index, extract_min_scalar)
     }
@@ -437,7 +612,7 @@ impl ParquetStatsProvider for CheckpointRowGroupFilter<'_> {
     fn get_parquet_max_stat(&self, col: &ColumnName, data_type: &DataType) -> Option<Scalar> {
         if is_top_level_partition_column(col, self.partition_columns) {
             let &idx = self.partition_column_indices.get(col)?;
-            return extract_max_scalar(data_type, self.get_stats_at(idx)?);
+            return extract_max_scalar(data_type, self.row_group.column(idx));
         }
         let max = self.get_guarded_stat(col, data_type, |i| i.max_index, extract_max_scalar)?;
         Some(adjust_stats_for_truncation(max))
@@ -503,6 +678,12 @@ fn extract_max_i64(stats: &Statistics) -> Option<i64> {
         Statistics::Int32(s) => Some(i64::from(*s.max_opt()?)),
         _ => None,
     }
+}
+
+#[cfg(feature = "float16")]
+fn float16_from_bytes(bytes: Option<&[u8]>) -> Option<Scalar> {
+    let bytes: [u8; 2] = bytes?.try_into().ok()?;
+    Some(Scalar::Float16(f16::from_le_bytes(bytes)))
 }
 
 /// Given a predicate of interest and a set of parquet column descriptors, build a column ->

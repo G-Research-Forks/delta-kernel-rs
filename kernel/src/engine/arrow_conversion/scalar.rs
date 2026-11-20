@@ -4,7 +4,8 @@
 //!
 //! All Delta primitive types are supported: Integer, Long, Short, Byte, Float, Double,
 //! Boolean, String, Date, Timestamp, TimestampNtz, Decimal, Binary (including `LargeUtf8`
-//! and `LargeBinary` Arrow variants).
+//! and `LargeBinary` Arrow variants). Uint8, Uint16, Uint32 and Uint64 are supported with the
+//! `unsigned-integers` feature, and TimeNanos with the `nanosecond-time` feature.
 //!
 //! Complex types (Struct, Array, Map) are not supported and return an error.
 //!
@@ -13,12 +14,18 @@
 // TODO: add `extract_scalar` that handles complex types (Struct, Array, Map) via recursive
 // extraction into StructData/ArrayData/MapData when there is a concrete use case.
 use crate::arrow::array::cast::AsArray;
+#[cfg(feature = "float16")]
+use crate::arrow::array::types::Float16Type;
+#[cfg(feature = "nanosecond-time")]
+use crate::arrow::array::types::Time64NanosecondType;
 #[cfg(feature = "nanosecond-timestamps")]
 use crate::arrow::array::types::TimestampNanosecondType;
 use crate::arrow::array::types::{
     Date32Type, Decimal128Type, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type,
     Int8Type, TimestampMicrosecondType,
 };
+#[cfg(feature = "unsigned-integers")]
+use crate::arrow::array::types::{UInt16Type, UInt32Type, UInt64Type, UInt8Type};
 use crate::arrow::array::Array;
 use crate::arrow::datatypes::{DataType as ArrowDataType, TimeUnit};
 use crate::expressions::Scalar;
@@ -63,6 +70,26 @@ pub fn extract_primitive_scalar(array: &dyn Array, row_idx: usize) -> KernelResu
         )),
         ArrowDataType::Int64 => Ok(Scalar::Long(
             array.as_primitive::<Int64Type>().value(row_idx),
+        )),
+        #[cfg(feature = "float16")]
+        ArrowDataType::Float16 => Ok(Scalar::Float16(
+            array.as_primitive::<Float16Type>().value(row_idx),
+        )),
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt8 => Ok(Scalar::Uint8(
+            array.as_primitive::<UInt8Type>().value(row_idx),
+        )),
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt16 => Ok(Scalar::Uint16(
+            array.as_primitive::<UInt16Type>().value(row_idx),
+        )),
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt32 => Ok(Scalar::Uint32(
+            array.as_primitive::<UInt32Type>().value(row_idx),
+        )),
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt64 => Ok(Scalar::Uint64(
+            array.as_primitive::<UInt64Type>().value(row_idx),
         )),
         ArrowDataType::Float32 => Ok(Scalar::Float(
             array.as_primitive::<Float32Type>().value(row_idx),
@@ -115,6 +142,10 @@ pub fn extract_primitive_scalar(array: &dyn Array, row_idx: usize) -> KernelResu
                 .as_primitive::<TimestampNanosecondType>()
                 .value(row_idx),
         )),
+        #[cfg(feature = "nanosecond-time")]
+        ArrowDataType::Time64(TimeUnit::Nanosecond) => Ok(Scalar::TimeNanos(
+            array.as_primitive::<Time64NanosecondType>().value(row_idx),
+        )),
         ArrowDataType::Decimal128(precision, scale) => {
             if *scale < 0 {
                 return Err(KernelError::generic(format!(
@@ -144,14 +175,25 @@ pub fn extract_primitive_scalar(array: &dyn Array, row_idx: usize) -> KernelResu
 ///
 /// This intentionally does not delegate to `TryFromArrow<&ArrowDataType>` from
 /// `arrow_conversion` because this function has different requirements: we accept any
-/// timezone annotation (not just UTC) and reject types like UInt*, Utf8View, Date64
-/// that `TryFromArrow` supports but are not valid for direct scalar extraction.
+/// timezone annotation (not just UTC) and reject types like Utf8View, Date64 (and UInt* without
+/// the `unsigned-integers` feature) that `TryFromArrow` supports but are not valid for direct
+/// scalar extraction.
 fn arrow_primitive_to_kernel_type(arrow_type: &ArrowDataType) -> KernelResult<DataType> {
     match arrow_type {
         ArrowDataType::Int8 => Ok(DataType::BYTE),
         ArrowDataType::Int16 => Ok(DataType::SHORT),
         ArrowDataType::Int32 => Ok(DataType::INTEGER),
         ArrowDataType::Int64 => Ok(DataType::LONG),
+        #[cfg(feature = "float16")]
+        ArrowDataType::Float16 => Ok(DataType::FLOAT16),
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt8 => Ok(DataType::UINT8),
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt16 => Ok(DataType::UINT16),
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt32 => Ok(DataType::UINT32),
+        #[cfg(feature = "unsigned-integers")]
+        ArrowDataType::UInt64 => Ok(DataType::UINT64),
         ArrowDataType::Float32 => Ok(DataType::FLOAT),
         ArrowDataType::Float64 => Ok(DataType::DOUBLE),
         ArrowDataType::Boolean => Ok(DataType::BOOLEAN),
@@ -169,6 +211,8 @@ fn arrow_primitive_to_kernel_type(arrow_type: &ArrowDataType) -> KernelResult<Da
         ArrowDataType::Timestamp(TimeUnit::Microsecond, _) => Ok(DataType::TIMESTAMP_NTZ),
         #[cfg(feature = "nanosecond-timestamps")]
         ArrowDataType::Timestamp(TimeUnit::Nanosecond, _) => Ok(DataType::TIMESTAMP_NANOS_NTZ),
+        #[cfg(feature = "nanosecond-time")]
+        ArrowDataType::Time64(TimeUnit::Nanosecond) => Ok(DataType::TIME_NANOS),
         ArrowDataType::Decimal128(p, s) => {
             if *s < 0 {
                 return Err(KernelError::generic(format!(
@@ -188,9 +232,15 @@ fn arrow_primitive_to_kernel_type(arrow_type: &ArrowDataType) -> KernelResult<Da
 mod tests {
     use std::sync::Arc;
 
+    #[cfg(feature = "float16")]
+    use half::f16;
     use rstest::rstest;
 
     use super::*;
+    #[cfg(feature = "float16")]
+    use crate::arrow::array::Float16Array;
+    #[cfg(feature = "nanosecond-time")]
+    use crate::arrow::array::Time64NanosecondArray;
     #[cfg(feature = "nanosecond-timestamps")]
     use crate::arrow::array::TimestampNanosecondArray;
     use crate::arrow::array::{
@@ -198,6 +248,8 @@ mod tests {
         Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
         LargeBinaryArray, LargeStringArray, StringArray, StructArray, TimestampMicrosecondArray,
     };
+    #[cfg(feature = "unsigned-integers")]
+    use crate::arrow::array::{UInt16Array, UInt32Array, UInt64Array, UInt8Array};
     use crate::arrow::datatypes::{Field, Fields};
     use crate::engine::arrow_conversion::TryFromArrow as _;
     use crate::partition::serialization::serialize_partition_value;
@@ -216,6 +268,7 @@ mod tests {
         Arc::new(Int64Array::from(vec![9_876_543_210i64])) as ArrayRef,
         Scalar::Long(9_876_543_210)
     )]
+    #[cfg_attr(feature = "float16", case::float16(Arc::new(Float16Array::from(vec![f16::from_f32(1.25)])) as ArrayRef, Scalar::Float16(f16::from_f32(1.25))))]
     #[case::float(Arc::new(Float32Array::from(vec![1.25f32])) as ArrayRef, Scalar::Float(1.25))]
     #[case::double(
         Arc::new(Float64Array::from(vec![99.99f64])) as ArrayRef,
@@ -248,6 +301,14 @@ mod tests {
     #[case::int_max(Arc::new(Int32Array::from(vec![i32::MAX])) as ArrayRef, Scalar::Integer(i32::MAX))]
     #[case::long_min(Arc::new(Int64Array::from(vec![i64::MIN])) as ArrayRef, Scalar::Long(i64::MIN))]
     #[case::long_max(Arc::new(Int64Array::from(vec![i64::MAX])) as ArrayRef, Scalar::Long(i64::MAX))]
+    #[cfg_attr(feature = "unsigned-integers", case::uint8(Arc::new(UInt8Array::from(vec![200u8])) as ArrayRef, Scalar::Uint8(200)))]
+    #[cfg_attr(feature = "unsigned-integers", case::uint8_max(Arc::new(UInt8Array::from(vec![u8::MAX])) as ArrayRef, Scalar::Uint8(u8::MAX)))]
+    #[cfg_attr(feature = "unsigned-integers", case::uint16(Arc::new(UInt16Array::from(vec![60000u16])) as ArrayRef, Scalar::Uint16(60000)))]
+    #[cfg_attr(feature = "unsigned-integers", case::uint16_max(Arc::new(UInt16Array::from(vec![u16::MAX])) as ArrayRef, Scalar::Uint16(u16::MAX)))]
+    #[cfg_attr(feature = "unsigned-integers", case::uint32(Arc::new(UInt32Array::from(vec![4_000_000_000u32])) as ArrayRef, Scalar::Uint32(4_000_000_000)))]
+    #[cfg_attr(feature = "unsigned-integers", case::uint32_max(Arc::new(UInt32Array::from(vec![u32::MAX])) as ArrayRef, Scalar::Uint32(u32::MAX)))]
+    #[cfg_attr(feature = "unsigned-integers", case::uint64_max( Arc::new(UInt64Array::from(vec![18446744073709551615u64])) as ArrayRef, Scalar::Uint64(18446744073709551615) ))]
+    #[cfg_attr(feature = "nanosecond-time", case::time_nanos(Arc::new(Time64NanosecondArray::from(vec![47_167_123_456_789i64])) as ArrayRef, Scalar::TimeNanos(47_167_123_456_789)))]
     fn test_extract_primitive_scalar_non_null_returns_typed_value(
         #[case] array: ArrayRef,
         #[case] expected: Scalar,
@@ -263,10 +324,13 @@ mod tests {
     // ============================================================================
 
     #[rstest]
+    #[cfg_attr(feature = "float16", case::float16_neg_zero(Arc::new(Float16Array::from(vec![f16::from_f32(-0.0)])) as ArrayRef))]
     #[case::float_neg_zero(Arc::new(Float32Array::from(vec![-0.0f32])) as ArrayRef)]
     #[case::double_neg_zero(Arc::new(Float64Array::from(vec![-0.0f64])) as ArrayRef)]
     fn test_extract_primitive_scalar_negative_zero_preserves_sign(#[case] array: ArrayRef) {
         match extract_primitive_scalar(array.as_ref(), 0).unwrap() {
+            #[cfg(feature = "float16")]
+            Scalar::Float16(v) => assert!(v.is_sign_negative() && v == f16::from_f32(0.0)),
             Scalar::Float(v) => assert!(v.is_sign_negative() && v == 0.0),
             Scalar::Double(v) => assert!(v.is_sign_negative() && v == 0.0),
             other => panic!("expected Float or Double, got {other:?}"),
@@ -274,10 +338,13 @@ mod tests {
     }
 
     #[rstest]
+    #[cfg_attr(feature = "float16", case::float16_nan(Arc::new(Float16Array::from(vec![f16::NAN])) as ArrayRef))]
     #[case::float_nan(Arc::new(Float32Array::from(vec![f32::NAN])) as ArrayRef)]
     #[case::double_nan(Arc::new(Float64Array::from(vec![f64::NAN])) as ArrayRef)]
     fn test_extract_primitive_scalar_nan_returns_nan(#[case] array: ArrayRef) {
         match extract_primitive_scalar(array.as_ref(), 0).unwrap() {
+            #[cfg(feature = "float16")]
+            Scalar::Float16(v) => assert!(v.is_nan()),
             Scalar::Float(v) => assert!(v.is_nan()),
             Scalar::Double(v) => assert!(v.is_nan()),
             other => panic!("expected Float or Double NaN, got {other:?}"),
@@ -285,10 +352,18 @@ mod tests {
     }
 
     #[rstest]
+    #[cfg_attr(feature = "float16", case::float16_inf(
+        Arc::new(Float16Array::from(vec![f16::INFINITY])) as ArrayRef,
+        Scalar::Float16(f16::INFINITY)
+    ))]
     #[case::float_inf(
         Arc::new(Float32Array::from(vec![f32::INFINITY])) as ArrayRef,
         Scalar::Float(f32::INFINITY)
     )]
+    #[cfg_attr(feature = "float16", case::float16_neg_inf(
+        Arc::new(Float16Array::from(vec![f16::NEG_INFINITY])) as ArrayRef,
+        Scalar::Float16(f16::NEG_INFINITY)
+    ))]
     #[case::float_neg_inf(
         Arc::new(Float32Array::from(vec![f32::NEG_INFINITY])) as ArrayRef,
         Scalar::Float(f32::NEG_INFINITY)
@@ -391,6 +466,43 @@ mod tests {
         );
     }
 
+    // Scalar extraction accepts any timezone annotation, but schema conversion accepts only
+    // "UTC" (as for microsecond timestamps), since timestamp stats are serialized with a
+    // hardcoded `Z` suffix.
+    #[cfg(feature = "nanosecond-timestamps")]
+    #[rstest]
+    #[case::no_tz(None, DataType::TIMESTAMP_NANOS_NTZ, true)]
+    #[case::empty_tz(Some(""), DataType::TIMESTAMP_NANOS_NTZ, false)]
+    #[case::utc(Some("UTC"), DataType::TIMESTAMP_NANOS, true)]
+    #[case::utc_lowercase(Some("utc"), DataType::TIMESTAMP_NANOS, true)]
+    #[case::utc_offset(Some("+00:00"), DataType::TIMESTAMP_NANOS, false)]
+    #[case::etc_utc(Some("Etc/UTC"), DataType::TIMESTAMP_NANOS, false)]
+    #[case::us_eastern(Some("America/New_York"), DataType::TIMESTAMP_NANOS, false)]
+    fn test_timestamp_nanos_schema_and_scalar_conversion(
+        #[case] tz: Option<&str>,
+        #[case] expected: DataType,
+        #[case] schema_conversion_succeeds: bool,
+    ) {
+        let array = TimestampNanosecondArray::from(vec![1_000_000i64])
+            .fold_with(tz, TimestampNanosecondArray::with_timezone);
+        let arrow_type = array.data_type();
+
+        let schema_type = DataType::try_from_arrow(arrow_type);
+        if schema_conversion_succeeds {
+            assert_eq!(schema_type.unwrap(), expected);
+        } else {
+            assert!(schema_type.is_err());
+        }
+        assert_eq!(
+            arrow_primitive_to_kernel_type(arrow_type).unwrap(),
+            expected
+        );
+        assert_eq!(
+            extract_primitive_scalar(&array, 0).unwrap().data_type(),
+            expected
+        );
+    }
+
     #[rstest]
     #[case::utc("UTC")]
     #[case::us_eastern("America/New_York")]
@@ -444,6 +556,26 @@ mod tests {
     #[case::int16(ArrowDataType::Int16, DataType::SHORT)]
     #[case::int32(ArrowDataType::Int32, DataType::INTEGER)]
     #[case::int64(ArrowDataType::Int64, DataType::LONG)]
+    #[cfg_attr(
+        feature = "float16",
+        case::float16(ArrowDataType::Float16, DataType::FLOAT16)
+    )]
+    #[cfg_attr(
+        feature = "unsigned-integers",
+        case::uint8(ArrowDataType::UInt8, DataType::UINT8)
+    )]
+    #[cfg_attr(
+        feature = "unsigned-integers",
+        case::uint16(ArrowDataType::UInt16, DataType::UINT16)
+    )]
+    #[cfg_attr(
+        feature = "unsigned-integers",
+        case::uint32(ArrowDataType::UInt32, DataType::UINT32)
+    )]
+    #[cfg_attr(
+        feature = "unsigned-integers",
+        case::uint64(ArrowDataType::UInt64, DataType::UINT64)
+    )]
     #[case::float32(ArrowDataType::Float32, DataType::FLOAT)]
     #[case::float64(ArrowDataType::Float64, DataType::DOUBLE)]
     #[case::boolean(ArrowDataType::Boolean, DataType::BOOLEAN)]
@@ -453,6 +585,10 @@ mod tests {
     #[case::timestamp_tz(
         ArrowDataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
         DataType::TIMESTAMP
+    )]
+    #[cfg_attr(
+        feature = "nanosecond-time",
+        case::time_nanos(ArrowDataType::Time64(TimeUnit::Nanosecond), DataType::TIME_NANOS)
     )]
     #[cfg_attr(feature="nanosecond-timestamps", case::timestamp_nanos_tz(
         ArrowDataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
@@ -618,6 +754,10 @@ mod tests {
     #[case::integer_min(Arc::new(Int32Array::from(vec![i32::MIN])) as ArrayRef)]
     #[case::long(Arc::new(Int64Array::from(vec![9_876_543_210i64])) as ArrayRef)]
     #[case::long_max(Arc::new(Int64Array::from(vec![i64::MAX])) as ArrayRef)]
+    #[cfg_attr(feature = "unsigned-integers", case::uint8_max(Arc::new(UInt8Array::from(vec![u8::MAX])) as ArrayRef))]
+    #[cfg_attr(feature = "unsigned-integers", case::uint16_max(Arc::new(UInt16Array::from(vec![u16::MAX])) as ArrayRef))]
+    #[cfg_attr(feature = "unsigned-integers", case::uint32_max(Arc::new(UInt32Array::from(vec![u32::MAX])) as ArrayRef))]
+    #[cfg_attr(feature = "unsigned-integers", case::uint64_max(Arc::new(UInt64Array::from(vec![u64::MAX])) as ArrayRef))]
     #[case::boolean_true(Arc::new(BooleanArray::from(vec![true])) as ArrayRef)]
     #[case::boolean_false(Arc::new(BooleanArray::from(vec![false])) as ArrayRef)]
     #[case::string(Arc::new(StringArray::from(vec!["hello world"])) as ArrayRef)]
@@ -629,6 +769,9 @@ mod tests {
         Arc::new(TimestampMicrosecondArray::from(vec![1_743_436_200_000_000i64]).with_timezone("UTC")) as ArrayRef
     )]
     #[case::timestamp_ntz(Arc::new(TimestampMicrosecondArray::from(vec![1_743_436_200_123_456i64])) as ArrayRef)]
+    #[cfg_attr(feature = "nanosecond-time", case::time_nanos(
+        Arc::new(Time64NanosecondArray::from(vec![47_167_123_456_789i64])) as ArrayRef
+    ))]
     #[cfg_attr(feature = "nanosecond-timestamps", case::timestamp_nanos_tz(
         Arc::new(TimestampNanosecondArray::from(vec![1_743_436_200_000_000_123i64]).with_timezone("UTC")) as ArrayRef
     ))]
@@ -644,6 +787,9 @@ mod tests {
     #[case::binary_utf8(Arc::new(BinaryArray::from_vec(vec![b"Hello"])) as ArrayRef)]
     #[case::large_utf8(Arc::new(LargeStringArray::from(vec!["large"])) as ArrayRef)]
     #[case::large_binary(Arc::new(LargeBinaryArray::from(vec![b"large".as_ref()])) as ArrayRef)]
+    #[cfg_attr(feature = "float16", case::float16_normal(Arc::new(Float16Array::from(vec![f16::from_f32(1.25)])) as ArrayRef))]
+    #[cfg_attr(feature = "float16", case::float16_inf(Arc::new(Float16Array::from(vec![f16::INFINITY])) as ArrayRef))]
+    #[cfg_attr(feature = "float16", case::float16_neg_inf(Arc::new(Float16Array::from(vec![f16::NEG_INFINITY])) as ArrayRef))]
     #[case::float_normal(Arc::new(Float32Array::from(vec![1.25f32])) as ArrayRef)]
     #[case::float_inf(Arc::new(Float32Array::from(vec![f32::INFINITY])) as ArrayRef)]
     #[case::float_neg_inf(Arc::new(Float32Array::from(vec![f32::NEG_INFINITY])) as ArrayRef)]
@@ -665,6 +811,7 @@ mod tests {
 
     // NaN does not equal itself, so we verify the roundtrip preserves NaN-ness separately.
     #[rstest]
+    #[cfg_attr(feature = "float16", case::float16_nan(Arc::new(Float16Array::from(vec![f16::NAN])) as ArrayRef))]
     #[case::float_nan(Arc::new(Float32Array::from(vec![f32::NAN])) as ArrayRef)]
     #[case::double_nan(Arc::new(Float64Array::from(vec![f64::NAN])) as ArrayRef)]
     fn test_roundtrip_nan_serialize_parse_returns_nan(#[case] array: ArrayRef) {
@@ -675,6 +822,8 @@ mod tests {
         let primitive_type = arrow_to_primitive_type(array.data_type());
         let parsed = primitive_type.parse_scalar(&serialized).unwrap();
         match parsed {
+            #[cfg(feature = "float16")]
+            Scalar::Float16(v) => assert!(v.is_nan(), "expected NaN float16"),
             Scalar::Float(v) => assert!(v.is_nan(), "expected NaN float"),
             Scalar::Double(v) => assert!(v.is_nan(), "expected NaN double"),
             other => panic!("expected float/double NaN, got {other:?}"),

@@ -269,7 +269,8 @@ fn check_cast_compat(
     match (source_type, &target_type) {
         (source_type, target_type) if source_type == target_type => Ok(DataTypeCompat::Identical),
         (&ArrowDataType::Timestamp(_, _), &ArrowDataType::Timestamp(_, _)) => {
-            // timestamps are able to be cast between each other
+            // Timestamp bounds returned by `timestamp_stat_as_micros` in
+            // `engine/parquet_row_group_skipping.rs` must agree with the reader's casts.
             Ok(DataTypeCompat::NeedsCast(target_type))
         }
         // Allow up-casting to a larger type if it's safe and can't cause overflow or loss of
@@ -277,6 +278,8 @@ fn check_cast_compat(
         (Int8, Int16 | Int32 | Int64 | Float64) => Ok(DataTypeCompat::NeedsCast(target_type)),
         (Int16, Int32 | Int64 | Float64) => Ok(DataTypeCompat::NeedsCast(target_type)),
         (Int32, Int64 | Float64) => Ok(DataTypeCompat::NeedsCast(target_type)),
+        (Float16, Float32) => Ok(DataTypeCompat::NeedsCast(target_type)),
+        (Float16, Float64) => Ok(DataTypeCompat::NeedsCast(target_type)),
         (Float32, Float64) => Ok(DataTypeCompat::NeedsCast(target_type)),
         (_, Decimal128(p, s)) if can_upcast_to_decimal(source_type, *p, *s) => {
             Ok(DataTypeCompat::NeedsCast(target_type))
@@ -914,6 +917,17 @@ mod tests {
             (PrimitiveType::Integer, PrimitiveType::Date),
             (PrimitiveType::Long, PrimitiveType::Timestamp),
             (PrimitiveType::Long, PrimitiveType::TimestampNtz),
+            #[cfg(feature = "nanosecond-timestamps")]
+            (PrimitiveType::TimestampNanos, PrimitiveType::Timestamp),
+            #[cfg(feature = "nanosecond-timestamps")]
+            (PrimitiveType::TimestampNanos, PrimitiveType::TimestampNtz),
+            #[cfg(feature = "nanosecond-timestamps")]
+            (PrimitiveType::TimestampNanosNtz, PrimitiveType::Timestamp),
+            #[cfg(feature = "nanosecond-timestamps")]
+            (
+                PrimitiveType::TimestampNanosNtz,
+                PrimitiveType::TimestampNtz,
+            ),
         ];
         for (source_kernel, target_kernel) in reinterpretation_pairs {
             // Verify the kernel-level rule holds

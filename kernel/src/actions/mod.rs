@@ -1259,7 +1259,7 @@ pub(crate) struct Remove {
     /// null values. This means an engine can assume that if a partition is found in
     /// [`Metadata::partition_columns`] but not in this map, its value is null.
     ///
-    /// [`materialize`]: crate::engine_data::EngineMap::materialize
+    /// [`materialize`]: crate::engine_data::MapItem::materialize
     #[allow_null_container_values]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub partition_values: Option<HashMap<String, String>>,

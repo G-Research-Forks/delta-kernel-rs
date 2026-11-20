@@ -95,6 +95,16 @@ impl Scalar {
             Long(val) => append_val_n_as!(array::Int64Builder, *val),
             Short(val) => append_val_n_as!(array::Int16Builder, *val),
             Byte(val) => append_val_n_as!(array::Int8Builder, *val),
+            #[cfg(feature = "float16")]
+            Float16(val) => append_val_n_as!(array::Float16Builder, *val),
+            #[cfg(feature = "unsigned-integers")]
+            Uint8(val) => append_val_n_as!(array::UInt8Builder, *val),
+            #[cfg(feature = "unsigned-integers")]
+            Uint16(val) => append_val_n_as!(array::UInt16Builder, *val),
+            #[cfg(feature = "unsigned-integers")]
+            Uint32(val) => append_val_n_as!(array::UInt32Builder, *val),
+            #[cfg(feature = "unsigned-integers")]
+            Uint64(val) => append_val_n_as!(array::UInt64Builder, *val),
             Float(val) => append_val_n_as!(array::Float32Builder, *val),
             Double(val) => append_val_n_as!(array::Float64Builder, *val),
             String(val) => append_val_as!(array::StringBuilder, val),
@@ -110,6 +120,8 @@ impl Scalar {
                 // timezone was already set at builder construction time
                 append_val_n_as!(array::TimestampNanosecondBuilder, *val)
             }
+            #[cfg(feature = "nanosecond-time")]
+            TimeNanos(val) => append_val_n_as!(array::Time64NanosecondBuilder, *val),
             Date(val) => append_val_n_as!(array::Date32Builder, *val),
             Binary(val) => append_val_as!(array::BinaryBuilder, val),
             // precision and scale were already set at builder construction time
@@ -185,6 +197,16 @@ impl Scalar {
             DataType::LONG => append_nulls_as!(array::Int64Builder),
             DataType::SHORT => append_nulls_as!(array::Int16Builder),
             DataType::BYTE => append_nulls_as!(array::Int8Builder),
+            #[cfg(feature = "float16")]
+            DataType::FLOAT16 => append_nulls_as!(array::Float16Builder),
+            #[cfg(feature = "unsigned-integers")]
+            DataType::UINT8 => append_nulls_as!(array::UInt8Builder),
+            #[cfg(feature = "unsigned-integers")]
+            DataType::UINT16 => append_nulls_as!(array::UInt16Builder),
+            #[cfg(feature = "unsigned-integers")]
+            DataType::UINT32 => append_nulls_as!(array::UInt32Builder),
+            #[cfg(feature = "unsigned-integers")]
+            DataType::UINT64 => append_nulls_as!(array::UInt64Builder),
             DataType::FLOAT => append_nulls_as!(array::Float32Builder),
             DataType::DOUBLE => append_nulls_as!(array::Float64Builder),
             DataType::STRING => append_nulls_as!(array::StringBuilder),
@@ -196,6 +218,8 @@ impl Scalar {
             DataType::TIMESTAMP_NANOS | DataType::TIMESTAMP_NANOS_NTZ => {
                 append_nulls_as!(array::TimestampNanosecondBuilder)
             }
+            #[cfg(feature = "nanosecond-time")]
+            DataType::TIME_NANOS => append_nulls_as!(array::Time64NanosecondBuilder),
             DataType::DATE => append_nulls_as!(array::Date32Builder),
             DataType::BINARY => append_nulls_as!(array::BinaryBuilder),
             DataType::Primitive(PrimitiveType::Decimal(_)) => {
@@ -492,6 +516,18 @@ fn primitive_types_compatible(expected: &PrimitiveType, data_type: &ArrowDataTyp
         (PrimitiveType::Integer, ArrowDataType::Int32 | ArrowDataType::UInt32) => true,
         (PrimitiveType::Short, ArrowDataType::Int16 | ArrowDataType::UInt16) => true,
         (PrimitiveType::Byte, ArrowDataType::Int8 | ArrowDataType::UInt8) => true,
+        #[cfg(feature = "float16")]
+        (PrimitiveType::Float16, ArrowDataType::Float16) => true,
+        #[cfg(feature = "unsigned-integers")]
+        (PrimitiveType::Uint8, ArrowDataType::UInt8) => true,
+        #[cfg(feature = "unsigned-integers")]
+        (PrimitiveType::Uint16, ArrowDataType::UInt16) => true,
+        #[cfg(feature = "unsigned-integers")]
+        (PrimitiveType::Uint32, ArrowDataType::UInt32) => true,
+        #[cfg(feature = "unsigned-integers")]
+        (PrimitiveType::Uint64, ArrowDataType::UInt64) => true,
+        #[cfg(feature = "nanosecond-time")]
+        (PrimitiveType::TimeNanos, ArrowDataType::Time64(TimeUnit::Nanosecond)) => true,
         (PrimitiveType::Float, ArrowDataType::Float32) => true,
         (PrimitiveType::Double, ArrowDataType::Float64) => true,
         (PrimitiveType::Boolean, ArrowDataType::Boolean) => true,
@@ -521,9 +557,6 @@ fn primitive_types_compatible(expected: &PrimitiveType, data_type: &ArrowDataTyp
                 None,
             ),
         ) => true,
-        (PrimitiveType::Void, ArrowDataType::Null) => true,
-        (PrimitiveType::IntervalYearMonth, ArrowDataType::Int32 | ArrowDataType::UInt32) => true,
-        (PrimitiveType::IntervalDayTime, ArrowDataType::Int64 | ArrowDataType::UInt64) => true,
         #[cfg(feature = "nanosecond-timestamps")]
         (
             PrimitiveType::TimestampNanos,
@@ -534,12 +567,24 @@ fn primitive_types_compatible(expected: &PrimitiveType, data_type: &ArrowDataTyp
             PrimitiveType::TimestampNanosNtz,
             ArrowDataType::Timestamp(TimeUnit::Nanosecond, None),
         ) => true,
+        (PrimitiveType::Void, ArrowDataType::Null) => true,
+        (PrimitiveType::IntervalYearMonth, ArrowDataType::Int32 | ArrowDataType::UInt32) => true,
+        (PrimitiveType::IntervalDayTime, ArrowDataType::Int64 | ArrowDataType::UInt64) => true,
         _ => false,
     }
 }
+
 #[cfg(test)]
 fn expected_timestamp_micros(value: &str) -> i64 {
     chrono::DateTime::parse_from_rfc3339(value)
         .unwrap()
         .timestamp_micros()
+}
+
+#[cfg(all(test, feature = "nanosecond-timestamps"))]
+fn expected_timestamp_nanos(value: &str) -> i64 {
+    chrono::DateTime::parse_from_rfc3339(value)
+        .unwrap()
+        .timestamp_nanos_opt()
+        .unwrap()
 }

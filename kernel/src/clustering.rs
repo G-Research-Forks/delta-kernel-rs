@@ -104,10 +104,26 @@ pub(crate) fn validate_clustering_columns(
         match field.data_type() {
             DataType::Primitive(ptype) if is_skipping_eligible_datatype(ptype) => {}
             dt => {
+                #[cfg(feature = "nanosecond-timestamps")]
+                let nanos = ", TimestampNanos, TimestampNanosNtz";
+                #[cfg(not(feature = "nanosecond-timestamps"))]
+                let nanos = "";
+                #[cfg(feature = "unsigned-integers")]
+                let uints = "Uint8, Uint16, Uint32, Uint64, ";
+                #[cfg(not(feature = "unsigned-integers"))]
+                let uints = "";
+                #[cfg(feature = "float16")]
+                let float16 = "Float16, ";
+                #[cfg(not(feature = "float16"))]
+                let float16 = "";
+                #[cfg(feature = "nanosecond-time")]
+                let time_nanos = ", TimeNanos";
+                #[cfg(not(feature = "nanosecond-time"))]
+                let time_nanos = "";
                 return Err(KernelError::generic(format!(
                     "Clustering column '{col}' has unsupported type '{dt}'. \
-                     Supported types: Byte, Short, Integer, Long, Float, Double, \
-                     Decimal, Date, Timestamp, TimestampNtz, TimestampNanos, TimestampNanosNtz, String"
+                     Supported types: Byte, Short, Integer, Long, {uints}{float16}Float, Double, \
+                     Decimal, Date, Timestamp, TimestampNtz{nanos}{time_nanos}, String"
                 )));
             }
         }
@@ -317,6 +333,30 @@ mod tests {
                 field.data_type()
             );
         }
+    }
+
+    #[cfg(feature = "nanosecond-timestamps")]
+    #[rstest::rstest]
+    fn test_validate_clustering_columns_accepts_timestamp_nanos(
+        #[values(DataType::TIMESTAMP_NANOS, DataType::TIMESTAMP_NANOS_NTZ)] data_type: DataType,
+    ) {
+        let schema = schema! { nullable "ts": (data_type) };
+        validate_clustering_columns(&schema, &[column_name!("ts")]).unwrap();
+    }
+
+    // The supported-types list in the error names the nanosecond types only when they exist.
+    #[test]
+    fn test_validate_clustering_unsupported_type_error_lists_supported_types() {
+        let schema = schema! { nullable "b": BOOLEAN };
+        let error = validate_clustering_columns(&schema, &[column_name!("b")])
+            .unwrap_err()
+            .to_string();
+        let expected = if cfg!(feature = "nanosecond-timestamps") {
+            "TimestampNtz, TimestampNanos, TimestampNanosNtz,"
+        } else {
+            "TimestampNtz,"
+        };
+        assert!(error.contains(expected), "{error}");
     }
 
     #[test]

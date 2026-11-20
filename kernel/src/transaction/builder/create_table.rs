@@ -27,8 +27,14 @@ use crate::schema::{
     StructType,
 };
 use crate::table_configuration::TableConfiguration;
+#[cfg(feature = "float16")]
+use crate::table_features::schema_contains_float16;
+#[cfg(feature = "nanosecond-time")]
+use crate::table_features::schema_contains_time_nanos;
 #[cfg(feature = "nanosecond-timestamps")]
 use crate::table_features::schema_contains_timestamp_nanos;
+#[cfg(feature = "unsigned-integers")]
+use crate::table_features::schema_contains_unsigned_integers;
 use crate::table_features::{
     add_feature_to_lists, assign_column_mapping_metadata, auto_enable_property_driven_features,
     ensure_domain_metadata_dependency, find_max_column_id_in_schema,
@@ -440,6 +446,49 @@ fn maybe_enable_invariants(schema: &SchemaRef, validated: &mut ValidatedTablePro
     }
 }
 
+#[cfg(feature = "float16")]
+/// Conditionally adds the `float16` feature to the protocol when the schema contains
+/// Float16 columns anywhere in the schema tree (top-level, nested structs, arrays, maps).
+fn maybe_enable_float16(schema: &SchemaRef, validated: &mut ValidatedTableProperties) {
+    if schema_contains_float16(schema) {
+        add_feature_to_lists(
+            TableFeature::Float16,
+            &mut validated.reader_features,
+            &mut validated.writer_features,
+        );
+    }
+}
+
+#[cfg(feature = "unsigned-integers")]
+/// Conditionally adds the `unsignedIntegerTypes-dev` feature to the protocol when the schema
+/// contains unsigned integer columns anywhere in the schema tree (top-level, nested structs,
+/// arrays, maps).
+fn maybe_enable_unsigned_integer_types(
+    schema: &SchemaRef,
+    validated: &mut ValidatedTableProperties,
+) {
+    if schema_contains_unsigned_integers(schema) {
+        add_feature_to_lists(
+            TableFeature::UnsignedIntegerTypes,
+            &mut validated.reader_features,
+            &mut validated.writer_features,
+        );
+    }
+}
+
+#[cfg(feature = "nanosecond-time")]
+/// Conditionally adds the `timeNanos-dev` feature to the protocol when the schema contains
+/// `time(9)` columns anywhere in the schema tree (top-level, nested structs, arrays, maps).
+fn maybe_enable_time_nanos(schema: &SchemaRef, validated: &mut ValidatedTableProperties) {
+    if schema_contains_time_nanos(schema) {
+        add_feature_to_lists(
+            TableFeature::TimeNanos,
+            &mut validated.reader_features,
+            &mut validated.writer_features,
+        );
+    }
+}
+
 #[cfg(feature = "nanosecond-timestamps")]
 /// Conditionally adds the `timestampNanos` and `timestampNtz` features to the protocol when the
 /// schema contains TimestampNanos columns anywhere in the schema tree (top-level, nested structs,
@@ -567,8 +616,9 @@ fn maybe_enable_parquet_encryption(
 /// column keys need a footer key, every column must be in the schema, no column may be listed
 /// twice or under a listed ancestor, and partition and clustering columns cannot be encrypted
 /// (clustering columns need statistics, which encrypted columns cannot have, so a clustered table
-/// cannot use uniform encryption either). Columns are given as logical names, since physical names are only assigned at create; the property is
-/// rewritten to the physical names the RFC requires under column mapping.
+/// cannot use uniform encryption either). Columns are given as logical names, since physical names
+/// are only assigned at create; the property is rewritten to the physical names the RFC requires
+/// under column mapping.
 ///
 /// Returns whether any `delta.encryption.*` property is set, in which case the table's protocol
 /// must list `parquetEncryption-dev`. Exposed so engines that build their own CREATE TABLE
@@ -1203,6 +1253,15 @@ impl TransactionBuilder<CreateTable> {
         // Auto-enable timestampNanos feature if schema contains TimestampNanos columns
         #[cfg(feature = "nanosecond-timestamps")]
         maybe_enable_timestamp_nanos(&effective_schema, &mut validated);
+
+        #[cfg(feature = "float16")]
+        maybe_enable_float16(&effective_schema, &mut validated);
+
+        #[cfg(feature = "unsigned-integers")]
+        maybe_enable_unsigned_integer_types(&effective_schema, &mut validated);
+
+        #[cfg(feature = "nanosecond-time")]
+        maybe_enable_time_nanos(&effective_schema, &mut validated);
 
         // Property-driven auto-enablement: check enablement properties
         maybe_auto_enable_property_driven_features(&mut validated);

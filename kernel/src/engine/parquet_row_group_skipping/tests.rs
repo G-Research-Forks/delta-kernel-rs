@@ -3,9 +3,27 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::sync::{Arc, LazyLock};
 
+use bytes::Bytes;
+#[cfg(feature = "float16")]
+use half::f16;
+use rstest::rstest;
+
 use super::*;
-use crate::arrow::array::{Int64Array, RecordBatch, StringArray, StructArray};
-use crate::arrow::datatypes::{DataType as ArrowDataType, Field, Fields, Schema as ArrowSchema};
+#[cfg(feature = "float16")]
+use crate::arrow::array::Float16Array;
+use crate::arrow::array::{ArrayRef, AsArray, Int64Array, RecordBatch, StringArray, StructArray};
+#[cfg(feature = "unsigned-integers")]
+use crate::arrow::array::{UInt32Array, UInt64Array};
+use crate::arrow::compute::cast;
+#[cfg(feature = "nanosecond-timestamps")]
+use crate::arrow::datatypes::TimestampNanosecondType;
+use crate::arrow::datatypes::{
+    DataType as ArrowDataType, Field, Fields, Schema as ArrowSchema, TimeUnit as ArrowTimeUnit,
+    TimestampMicrosecondType,
+};
+use crate::engine::reader_options;
+#[cfg(feature = "nanosecond-timestamps")]
+use crate::expressions::expr;
 use crate::expressions::{
     col, column_name, column_pred, lit, Expression, OpaquePredicateOp, ScalarExpressionEvaluator,
 };
@@ -14,12 +32,15 @@ use crate::kernel_predicates::{
     DirectPredicateEvaluator, IndirectDataSkippingPredicateEvaluator,
     KernelPredicateEvaluator as _,
 };
-use crate::parquet::arrow::arrow_reader::ArrowReaderMetadata;
+use crate::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ParquetRecordBatchReaderBuilder};
 use crate::parquet::arrow::ArrowWriter;
+use crate::parquet::basic::Type as PhysicalType;
 use crate::parquet::data_type::{ByteArray, FixedLenByteArray};
 use crate::parquet::file::properties::WriterProperties;
-use crate::parquet::file::reader::FileReader;
+use crate::parquet::file::reader::{ChunkReader, FileReader};
 use crate::parquet::file::serialized_reader::SerializedFileReader;
+use crate::parquet::schema::types::{ColumnPath, Type};
+use crate::scan::data_skipping::as_checkpoint_skipping_predicate;
 use crate::{KernelResult, Predicate};
 
 /// Empty partition column set for tests that don't need partition columns.
@@ -57,7 +78,7 @@ static NO_PARTITIONS: LazyLock<HashSet<String>> = LazyLock::new(HashSet::new);
 #[test]
 fn test_get_stat_values() {
     let file = File::open("./tests/data/parquet_row_group_skipping/part-00000-b92e017a-50ba-4676-8322-48fc371c2b59-c000.snappy.parquet").unwrap();
-    let metadata = ArrowReaderMetadata::load(&file, Default::default()).unwrap();
+    let metadata = ArrowReaderMetadata::load(&file, reader_options()).unwrap();
 
     // The predicate doesn't matter -- it just needs to mention all the columns we care about.
     let columns = Predicate::and_from(vec![
@@ -458,6 +479,618 @@ fn test_get_stat_values() {
     );
 }
 
+#[rstest]
+#[case::greater_positive(Predicate::gt, 1_500_000, 2)]
+#[case::less_positive(Predicate::lt, 1_500_000, 5)]
+#[case::greater_negative(Predicate::gt, -1_500_000, 5)]
+#[case::less_negative(Predicate::lt, -1_500_000, 2)]
+#[case::equal_positive(Predicate::eq, 1_500_000, 2)]
+#[case::equal_negative(Predicate::eq, -1_500_000, 2)]
+fn timestamp_row_group_skipping_rescales_footer_units(
+    #[case] comparison: fn(Expression, Expression) -> Predicate,
+    #[case] bound: i64,
+    #[case] expected_rows: usize,
+    #[values(
+        ArrowTimeUnit::Millisecond,
+        ArrowTimeUnit::Microsecond,
+        ArrowTimeUnit::Nanosecond
+    )]
+    unit: ArrowTimeUnit,
+    #[values(None, Some("UTC"))] timezone: Option<&str>,
+) {
+    let values = [-1_999_000, -1_001_000, 0, 1_001_000, 1_999_000]
+        .map(|micros| micros_to_unit(micros, unit));
+    let col_path = ["add", "partitionValues_parsed", "ts"];
+    let bytes = write_timestamp_parquet(
+        unit,
+        timezone,
+        &col_path,
+        &[&values[..2], &values[2..3], &values[3..]],
+    );
+    let (_, scalar) = timestamp_kind(timezone);
+    let bound = lit(scalar(bound));
+    let count_rows = |builder: ParquetRecordBatchReaderBuilder<Bytes>| -> usize {
+        builder
+            .build()
+            .unwrap()
+            .map(|batch| batch.unwrap().num_rows())
+            .sum()
+    };
+    let builder = || parquet_reader(bytes.clone());
+
+    let predicate = comparison(Expression::column(col_path), bound.clone());
+    assert_eq!(
+        count_rows(builder().with_row_group_filter(&predicate, None)),
+        expected_rows
+    );
+
+    let predicate = comparison(col!("ts"), bound);
+    let partition_columns = HashSet::from(["ts".into()]);
+    assert_eq!(
+        count_rows(builder().with_checkpoint_row_group_filter(
+            &predicate,
+            &partition_columns,
+            None
+        )),
+        expected_rows
+    );
+}
+
+#[rstest]
+#[case::millis(ArrowTimeUnit::Millisecond, 1_580_544_550_000, 1_580_544_550_000_000)]
+#[case::negative_millis(ArrowTimeUnit::Millisecond, -1, -1_000)]
+#[case::micros_max(ArrowTimeUnit::Microsecond, i64::MAX, i64::MAX)]
+#[case::micros_min(ArrowTimeUnit::Microsecond, i64::MIN, i64::MIN)]
+#[case::nanos(ArrowTimeUnit::Nanosecond, 1_999, 1)]
+#[case::negative_nanos(ArrowTimeUnit::Nanosecond, -1_999, -1)]
+#[case::sub_microsecond(ArrowTimeUnit::Nanosecond, 999, 0)]
+#[case::negative_sub_microsecond(ArrowTimeUnit::Nanosecond, -999, 0)]
+fn timestamp_footer_stats_match_arrow_microsecond_cast(
+    #[case] unit: ArrowTimeUnit,
+    #[case] raw: i64,
+    #[case] expected: i64,
+    #[values(None, Some("UTC"))] timezone: Option<&str>,
+) {
+    let bytes = write_timestamp_parquet(unit, timezone, &["ts"], &[&[raw]]);
+    let builder = parquet_reader(bytes);
+    let predicate = column_pred!("ts");
+    let filter = RowGroupFilter::new(builder.metadata().row_group(0), &predicate);
+    let (data_type, scalar) = timestamp_kind(timezone);
+    assert_eq!(
+        filter.get_min_stat(&column_name!("ts"), &data_type),
+        Some(scalar(expected))
+    );
+    assert_eq!(
+        filter.get_max_stat(&column_name!("ts"), &data_type),
+        Some(scalar(expected))
+    );
+
+    let batch = builder.build().unwrap().next().unwrap().unwrap();
+    let micros_type =
+        ArrowDataType::Timestamp(ArrowTimeUnit::Microsecond, timezone.map(Into::into));
+    let micros = cast(batch.column(0), &micros_type).unwrap();
+    assert_eq!(
+        micros.as_primitive::<TimestampMicrosecondType>().value(0),
+        expected
+    );
+}
+
+#[rstest]
+#[case::max_overflow(&[-1, i64::MAX / 1_000 + 1], Some(-1_000), None)]
+#[case::min_underflow(&[i64::MIN / 1_000 - 1, 1], None, Some(1_000))]
+fn timestamp_footer_stat_overflow_keeps_row_group(
+    #[case] raw: &[i64],
+    #[case] expected_min: Option<i64>,
+    #[case] expected_max: Option<i64>,
+    #[values(None, Some("UTC"))] timezone: Option<&str>,
+) {
+    let bytes = write_timestamp_parquet(ArrowTimeUnit::Millisecond, timezone, &["ts"], &[raw]);
+    let builder = parquet_reader(bytes);
+    let row_group = builder.metadata().row_group(0);
+    let predicate = column_pred!("ts");
+    let filter = RowGroupFilter::new(row_group, &predicate);
+    let (data_type, scalar) = timestamp_kind(timezone);
+    assert_eq!(
+        filter.get_min_stat(&column_name!("ts"), &data_type),
+        expected_min.map(scalar)
+    );
+    assert_eq!(
+        filter.get_max_stat(&column_name!("ts"), &data_type),
+        expected_max.map(scalar)
+    );
+
+    assert!(RowGroupFilter::apply(
+        row_group,
+        &Predicate::lt(col!("ts"), lit(scalar(0)))
+    ));
+    assert!(RowGroupFilter::apply(
+        row_group,
+        &Predicate::gt(col!("ts"), lit(scalar(0)))
+    ));
+    assert!(RowGroupFilter::apply(
+        row_group,
+        &Predicate::eq(col!("ts"), lit(scalar(0)))
+    ));
+    if let Some(min) = expected_min {
+        assert!(!RowGroupFilter::apply(
+            row_group,
+            &Predicate::lt(col!("ts"), lit(scalar(min)))
+        ));
+    }
+    if let Some(max) = expected_max {
+        assert!(!RowGroupFilter::apply(
+            row_group,
+            &Predicate::gt(col!("ts"), lit(scalar(max)))
+        ));
+    }
+}
+
+#[rstest]
+#[case::missing_statistics(false, false, false)]
+#[case::missing_bounds(true, false, false)]
+#[case::min_only(true, true, false)]
+#[case::max_only(true, false, true)]
+fn timestamp_row_group_skipping_uses_only_available_bounds(
+    #[case] has_statistics: bool,
+    #[case] has_min: bool,
+    #[case] has_max: bool,
+    #[values(None, Some("UTC"))] timezone: Option<&str>,
+) {
+    let bytes = write_timestamp_parquet(
+        ArrowTimeUnit::Millisecond,
+        timezone,
+        &["ts"],
+        &[&[1_000, 2_000]],
+    );
+    let builder = parquet_reader(bytes);
+    let row_group = builder.metadata().row_group(0);
+    let mut column =
+        ColumnChunkMetaData::builder(row_group.column(0).column_descr_ptr()).set_num_values(2);
+    if has_statistics {
+        column = column.set_statistics(Statistics::int64(
+            has_min.then_some(1_000),
+            has_max.then_some(2_000),
+            None,
+            Some(0),
+            false,
+        ));
+    }
+    let row_group = row_group
+        .clone()
+        .into_builder()
+        .set_column_metadata(vec![column.build().unwrap()])
+        .build()
+        .unwrap();
+    let predicate = column_pred!("ts");
+    let filter = RowGroupFilter::new(&row_group, &predicate);
+    let (data_type, scalar) = timestamp_kind(timezone);
+
+    assert_eq!(
+        filter.get_min_stat(&column_name!("ts"), &data_type),
+        has_min.then(|| scalar(1_000_000))
+    );
+    assert_eq!(
+        filter.get_max_stat(&column_name!("ts"), &data_type),
+        has_max.then(|| scalar(2_000_000))
+    );
+    assert!(RowGroupFilter::apply(
+        &row_group,
+        &Predicate::eq(col!("ts"), lit(scalar(1_000_000)))
+    ));
+    assert_eq!(
+        RowGroupFilter::apply(
+            &row_group,
+            &Predicate::lt(col!("ts"), lit(scalar(1_000_000)))
+        ),
+        !has_min
+    );
+    assert_eq!(
+        RowGroupFilter::apply(
+            &row_group,
+            &Predicate::gt(col!("ts"), lit(scalar(2_000_000)))
+        ),
+        !has_max
+    );
+}
+
+#[rstest]
+#[case::unannotated(None, ConvertedType::NONE, Some(1_000))]
+#[case::legacy_millis(None, ConvertedType::TIMESTAMP_MILLIS, Some(1_000_000))]
+#[case::legacy_micros(None, ConvertedType::TIMESTAMP_MICROS, Some(1_000))]
+#[case::legacy_time(None, ConvertedType::TIME_MICROS, None)]
+#[case::legacy_signed_integer(None, ConvertedType::INT_64, None)]
+#[case::legacy_unsigned_integer(None, ConvertedType::UINT_64, None)]
+#[case::legacy_decimal(None, ConvertedType::DECIMAL, None)]
+#[case::logical_time(
+    Some(LogicalType::time(true, TimeUnit::MICROS)),
+    ConvertedType::TIME_MICROS,
+    None
+)]
+#[case::logical_nanos_time(
+    Some(LogicalType::time(true, TimeUnit::NANOS)),
+    ConvertedType::NONE,
+    None
+)]
+#[case::logical_signed_integer(Some(LogicalType::integer(64, true)), ConvertedType::INT_64, None)]
+#[case::logical_unsigned_integer(
+    Some(LogicalType::integer(64, false)),
+    ConvertedType::UINT_64,
+    None
+)]
+#[case::logical_decimal(Some(LogicalType::decimal(2, 10)), ConvertedType::DECIMAL, None)]
+fn timestamp_footer_stats_respect_annotations(
+    #[case] logical_type: Option<LogicalType>,
+    #[case] converted_type: ConvertedType,
+    #[case] expected: Option<i64>,
+    #[values(None, Some("UTC"))] timezone: Option<&str>,
+) {
+    let builder = Type::primitive_type_builder("ts", PhysicalType::INT64)
+        .with_logical_type(logical_type.clone())
+        .with_converted_type(converted_type);
+    let builder = if converted_type == ConvertedType::DECIMAL {
+        builder.with_precision(10).with_scale(2)
+    } else {
+        builder
+    };
+    let column = ColumnDescriptor::new(
+        Arc::new(builder.build().unwrap()),
+        0,
+        0,
+        ColumnPath::from("ts"),
+    );
+    assert_eq!(column.logical_type_ref(), logical_type.as_ref());
+    let stats = Statistics::int64(Some(1_000), Some(1_000), None, Some(0), false);
+    let column = ColumnChunkMetaData::builder(Arc::new(column))
+        .set_statistics(stats)
+        .build()
+        .unwrap();
+    let (data_type, scalar) = timestamp_kind(timezone);
+    let expected = expected.map(scalar);
+    assert_eq!(extract_min_scalar(&data_type, &column), expected.clone());
+    assert_eq!(extract_max_scalar(&data_type, &column), expected);
+}
+
+#[cfg(feature = "nanosecond-timestamps")]
+#[rstest]
+#[case::greater_positive(Predicate::gt, 1_500_000_000, 2)]
+#[case::less_positive(Predicate::lt, 1_500_000_000, 5)]
+#[case::greater_negative(Predicate::gt, -1_500_000_000, 5)]
+#[case::less_negative(Predicate::lt, -1_500_000_000, 2)]
+#[case::equal_positive(Predicate::eq, 1_500_000_000, 2)]
+#[case::equal_negative(Predicate::eq, -1_500_000_000, 2)]
+fn timestamp_nanos_row_group_skipping_rescales_footer_units(
+    #[case] comparison: fn(Expression, Expression) -> Predicate,
+    #[case] bound: i64,
+    #[case] expected_rows: usize,
+    #[values(
+        ArrowTimeUnit::Millisecond,
+        ArrowTimeUnit::Microsecond,
+        ArrowTimeUnit::Nanosecond
+    )]
+    unit: ArrowTimeUnit,
+    #[values(None, Some("UTC"))] timezone: Option<&str>,
+) {
+    let values = [-1_999_000, -1_001_000, 0, 1_001_000, 1_999_000]
+        .map(|micros| micros_to_unit(micros, unit));
+    let col_path = ["add", "partitionValues_parsed", "ts"];
+    let bytes = write_timestamp_parquet(
+        unit,
+        timezone,
+        &col_path,
+        &[&values[..2], &values[2..3], &values[3..]],
+    );
+    let (_, scalar) = timestamp_nanos_kind(timezone);
+    let bound = lit(scalar(bound));
+    let count_rows = |builder: ParquetRecordBatchReaderBuilder<Bytes>| -> usize {
+        builder
+            .build()
+            .unwrap()
+            .map(|batch| batch.unwrap().num_rows())
+            .sum()
+    };
+    let builder = || parquet_reader(bytes.clone());
+
+    let predicate = comparison(Expression::column(col_path), bound.clone());
+    assert_eq!(
+        count_rows(builder().with_row_group_filter(&predicate, None)),
+        expected_rows
+    );
+
+    let predicate = comparison(col!("ts"), bound);
+    let partition_columns = HashSet::from(["ts".into()]);
+    assert_eq!(
+        count_rows(builder().with_checkpoint_row_group_filter(
+            &predicate,
+            &partition_columns,
+            None
+        )),
+        expected_rows
+    );
+}
+
+#[cfg(feature = "nanosecond-timestamps")]
+#[rstest]
+#[case::millis(
+    ArrowTimeUnit::Millisecond,
+    1_580_544_550_123,
+    1_580_544_550_123_000_000
+)]
+#[case::negative_millis(ArrowTimeUnit::Millisecond, -1, -1_000_000)]
+#[case::micros(
+    ArrowTimeUnit::Microsecond,
+    1_580_544_550_123_456,
+    1_580_544_550_123_456_000
+)]
+#[case::negative_micros(ArrowTimeUnit::Microsecond, -1, -1_000)]
+#[case::nanos_max(ArrowTimeUnit::Nanosecond, i64::MAX, i64::MAX)]
+#[case::nanos_min(ArrowTimeUnit::Nanosecond, i64::MIN, i64::MIN)]
+fn timestamp_nanos_footer_stats_match_arrow_nanosecond_cast(
+    #[case] unit: ArrowTimeUnit,
+    #[case] raw: i64,
+    #[case] expected: i64,
+    #[values(None, Some("UTC"))] timezone: Option<&str>,
+) {
+    let bytes = write_timestamp_parquet(unit, timezone, &["ts"], &[&[raw]]);
+    let builder = parquet_reader(bytes);
+    let predicate = column_pred!("ts");
+    let filter = RowGroupFilter::new(builder.metadata().row_group(0), &predicate);
+    let (data_type, scalar) = timestamp_nanos_kind(timezone);
+    assert_eq!(
+        filter.get_min_stat(&column_name!("ts"), &data_type),
+        Some(scalar(expected))
+    );
+    assert_eq!(
+        filter.get_max_stat(&column_name!("ts"), &data_type),
+        Some(scalar(expected))
+    );
+
+    let batch = builder.build().unwrap().next().unwrap().unwrap();
+    let nanos_type = ArrowDataType::Timestamp(ArrowTimeUnit::Nanosecond, timezone.map(Into::into));
+    let nanos = cast(batch.column(0), &nanos_type).unwrap();
+    assert_eq!(
+        nanos.as_primitive::<TimestampNanosecondType>().value(0),
+        expected
+    );
+}
+
+#[cfg(feature = "nanosecond-timestamps")]
+#[rstest]
+#[case::millis_max_overflow(ArrowTimeUnit::Millisecond, &[-1, i64::MAX / 1_000_000 + 1], Some(-1_000_000), None)]
+#[case::millis_min_underflow(ArrowTimeUnit::Millisecond, &[i64::MIN / 1_000_000 - 1, 1], None, Some(1_000_000))]
+#[case::micros_max_overflow(ArrowTimeUnit::Microsecond, &[-1, i64::MAX / 1_000 + 1], Some(-1_000), None)]
+#[case::micros_min_underflow(ArrowTimeUnit::Microsecond, &[i64::MIN / 1_000 - 1, 1], None, Some(1_000))]
+fn timestamp_nanos_footer_stat_overflow_keeps_row_group(
+    #[case] unit: ArrowTimeUnit,
+    #[case] raw: &[i64],
+    #[case] expected_min: Option<i64>,
+    #[case] expected_max: Option<i64>,
+    #[values(None, Some("UTC"))] timezone: Option<&str>,
+) {
+    let bytes = write_timestamp_parquet(unit, timezone, &["ts"], &[raw]);
+    let builder = parquet_reader(bytes);
+    let row_group = builder.metadata().row_group(0);
+    let predicate = column_pred!("ts");
+    let filter = RowGroupFilter::new(row_group, &predicate);
+    let (data_type, scalar) = timestamp_nanos_kind(timezone);
+    assert_eq!(
+        filter.get_min_stat(&column_name!("ts"), &data_type),
+        expected_min.map(scalar)
+    );
+    assert_eq!(
+        filter.get_max_stat(&column_name!("ts"), &data_type),
+        expected_max.map(scalar)
+    );
+    assert!(RowGroupFilter::apply(
+        row_group,
+        &Predicate::from_expr(expr!(col("ts") < lit(scalar(0))))
+    ));
+    assert!(RowGroupFilter::apply(
+        row_group,
+        &Predicate::from_expr(expr!(col("ts") > lit(scalar(0))))
+    ));
+}
+
+#[cfg(feature = "nanosecond-timestamps")]
+#[rstest]
+#[case::nanos(
+    Some(LogicalType::timestamp(true, TimeUnit::NANOS)),
+    ConvertedType::NONE,
+    Some(1_000)
+)]
+#[case::micros(
+    Some(LogicalType::timestamp(true, TimeUnit::MICROS)),
+    ConvertedType::NONE,
+    Some(1_000_000)
+)]
+#[case::legacy_millis(None, ConvertedType::TIMESTAMP_MILLIS, Some(1_000_000_000))]
+#[case::legacy_micros(None, ConvertedType::TIMESTAMP_MICROS, Some(1_000_000))]
+#[case::unannotated(None, ConvertedType::NONE, None)]
+#[case::legacy_time(None, ConvertedType::TIME_MICROS, None)]
+#[case::logical_signed_integer(Some(LogicalType::integer(64, true)), ConvertedType::INT_64, None)]
+fn timestamp_nanos_footer_stats_respect_annotations(
+    #[case] logical_type: Option<LogicalType>,
+    #[case] converted_type: ConvertedType,
+    #[case] expected: Option<i64>,
+    #[values(None, Some("UTC"))] timezone: Option<&str>,
+) {
+    let column = Type::primitive_type_builder("ts", PhysicalType::INT64)
+        .with_logical_type(logical_type)
+        .with_converted_type(converted_type)
+        .build()
+        .unwrap();
+    let column = ColumnDescriptor::new(Arc::new(column), 0, 0, ColumnPath::from("ts"));
+    let stats = Statistics::int64(Some(1_000), Some(1_000), None, Some(0), false);
+    let column = ColumnChunkMetaData::builder(Arc::new(column))
+        .set_statistics(stats)
+        .build()
+        .unwrap();
+    let (data_type, scalar) = timestamp_nanos_kind(timezone);
+    let expected = expected.map(scalar);
+    assert_eq!(extract_min_scalar(&data_type, &column), expected.clone());
+    assert_eq!(extract_max_scalar(&data_type, &column), expected);
+}
+
+#[rstest]
+fn timestamp_checkpoint_stats_rescale_before_widening(
+    #[values(
+        ArrowTimeUnit::Millisecond,
+        ArrowTimeUnit::Microsecond,
+        ArrowTimeUnit::Nanosecond
+    )]
+    unit: ArrowTimeUnit,
+    #[values(None, Some("UTC"))] timezone: Option<&str>,
+    #[values(MIN_VALUES, MAX_VALUES)] stat: &str,
+) {
+    let bytes = write_timestamp_parquet(
+        unit,
+        timezone,
+        &["add", "stats_parsed", stat, "ts"],
+        &[&[micros_to_unit(1_001_000, unit)]],
+    );
+    let builder = parquet_reader(bytes);
+    let predicate = column_pred!("ts");
+    let filter =
+        CheckpointRowGroupFilter::new(builder.metadata().row_group(0), &predicate, &NO_PARTITIONS);
+    let (data_type, scalar) = timestamp_kind(timezone);
+    let (actual, expected) = if stat == MIN_VALUES {
+        (
+            filter.get_min_stat(&column_name!("ts"), &data_type),
+            1_001_000,
+        )
+    } else {
+        (
+            filter.get_max_stat(&column_name!("ts"), &data_type),
+            1_001_999,
+        )
+    };
+    assert_eq!(actual, Some(scalar(expected)));
+}
+
+// Checkpoint max stats are widened by 999_999ns to account for millisecond truncation in
+// JSON-serialized stats, after rescaling from the footer unit.
+#[cfg(feature = "nanosecond-timestamps")]
+#[rstest]
+fn timestamp_nanos_checkpoint_stats_rescale_before_widening(
+    #[values(
+        ArrowTimeUnit::Millisecond,
+        ArrowTimeUnit::Microsecond,
+        ArrowTimeUnit::Nanosecond
+    )]
+    unit: ArrowTimeUnit,
+    #[values(None, Some("UTC"))] timezone: Option<&str>,
+    #[values(MIN_VALUES, MAX_VALUES)] stat: &str,
+) {
+    let bytes = write_timestamp_parquet(
+        unit,
+        timezone,
+        &["add", "stats_parsed", stat, "ts"],
+        &[&[micros_to_unit(1_001_000, unit)]],
+    );
+    let builder = parquet_reader(bytes);
+    let predicate = column_pred!("ts");
+    let filter =
+        CheckpointRowGroupFilter::new(builder.metadata().row_group(0), &predicate, &NO_PARTITIONS);
+    let (data_type, scalar) = timestamp_nanos_kind(timezone);
+    let (actual, expected) = if stat == MIN_VALUES {
+        (
+            filter.get_min_stat(&column_name!("ts"), &data_type),
+            1_001_000_000,
+        )
+    } else {
+        (
+            filter.get_max_stat(&column_name!("ts"), &data_type),
+            1_001_999_999,
+        )
+    };
+    assert_eq!(actual, Some(scalar(expected)));
+}
+
+#[rstest]
+fn timestamp_checkpoint_meta_predicate_preserves_truncated_max(
+    #[values(
+        ArrowTimeUnit::Millisecond,
+        ArrowTimeUnit::Microsecond,
+        ArrowTimeUnit::Nanosecond
+    )]
+    unit: ArrowTimeUnit,
+    #[values(None, Some("UTC"))] timezone: Option<&str>,
+) {
+    let bytes = write_timestamp_parquet(
+        unit,
+        timezone,
+        &["stats_parsed", MAX_VALUES, "ts"],
+        &[
+            &[micros_to_unit(1_000_000, unit)],
+            &[micros_to_unit(1_001_000, unit)],
+        ],
+    );
+    let (_, scalar) = timestamp_kind(timezone);
+    let predicate = as_checkpoint_skipping_predicate(
+        &Predicate::gt(col!("ts"), lit(scalar(1_001_500))),
+        &HashSet::new(),
+        &HashSet::new(),
+        &HashSet::from([column_name!("ts")]),
+    )
+    .unwrap();
+    let rows: usize = parquet_reader(bytes)
+        .with_row_group_filter(&predicate, None)
+        .build()
+        .unwrap()
+        .map(|batch| batch.unwrap().num_rows())
+        .sum();
+    assert_eq!(rows, 1);
+}
+
+fn parquet_reader<T: ChunkReader + 'static>(data: T) -> ParquetRecordBatchReaderBuilder<T> {
+    ParquetRecordBatchReaderBuilder::try_new_with_options(data, reader_options()).unwrap()
+}
+
+fn write_timestamp_parquet(
+    unit: ArrowTimeUnit,
+    timezone: Option<&str>,
+    col_path: &[&str],
+    row_groups: &[&[i64]],
+) -> Bytes {
+    let data_type = ArrowDataType::Timestamp(unit, timezone.map(Into::into));
+    let mut writer = None;
+    for &values in row_groups {
+        let array = cast(&Int64Array::from(values.to_vec()), &data_type).unwrap();
+        let (field, array) = wrap_in_nested_struct(col_path, array);
+        let schema = Arc::new(ArrowSchema::new(vec![field]));
+        let batch = RecordBatch::try_new(schema.clone(), vec![array]).unwrap();
+        let writer =
+            writer.get_or_insert_with(|| ArrowWriter::try_new(Vec::new(), schema, None).unwrap());
+        writer.write(&batch).unwrap();
+        // Flush each supplied group so the tests control its footer bounds.
+        writer.flush().unwrap();
+    }
+    writer.unwrap().into_inner().unwrap().into()
+}
+
+fn timestamp_kind(timezone: Option<&str>) -> (DataType, fn(i64) -> Scalar) {
+    match timezone {
+        Some(_) => (DataType::TIMESTAMP, Scalar::Timestamp),
+        None => (DataType::TIMESTAMP_NTZ, Scalar::TimestampNtz),
+    }
+}
+
+#[cfg(feature = "nanosecond-timestamps")]
+fn timestamp_nanos_kind(timezone: Option<&str>) -> (DataType, fn(i64) -> Scalar) {
+    match timezone {
+        Some(_) => (DataType::TIMESTAMP_NANOS, Scalar::TimestampNanos),
+        None => (DataType::TIMESTAMP_NANOS_NTZ, Scalar::TimestampNanosNtz),
+    }
+}
+
+fn micros_to_unit(micros: i64, unit: ArrowTimeUnit) -> i64 {
+    match unit {
+        ArrowTimeUnit::Millisecond => micros / 1_000,
+        ArrowTimeUnit::Microsecond => micros,
+        ArrowTimeUnit::Nanosecond => micros * 1_000,
+        ArrowTimeUnit::Second => unreachable!(),
+    }
+}
+
 // A missing footer null count decodes to `None`; an exact zero is preserved as `Some(0)`. Parquet
 // Supported parquet versions distinguish the two (arrow-rs#9451).
 #[test]
@@ -474,7 +1107,7 @@ fn test_extract_nullcount_distinguishes_missing_from_zero() {
 #[test]
 fn test_row_group_filter_is_null_prunes_when_nullcount_is_zero() {
     let file = File::open("./tests/data/parquet_row_group_skipping/part-00000-b92e017a-50ba-4676-8322-48fc371c2b59-c000.snappy.parquet").unwrap();
-    let metadata = ArrowReaderMetadata::load(&file, Default::default()).unwrap();
+    let metadata = ArrowReaderMetadata::load(&file, reader_options()).unwrap();
     let row_group = metadata.metadata().row_group(0);
 
     assert!(!RowGroupFilter::apply(
@@ -484,6 +1117,80 @@ fn test_row_group_filter_is_null_prunes_when_nullcount_is_zero() {
     assert!(RowGroupFilter::apply(
         row_group,
         &Predicate::is_null(col!("bool"))
+    ));
+}
+
+#[cfg(feature = "nanosecond-timestamps")]
+#[test]
+fn test_row_group_filter_reads_timestamp_nanos_footer_stats() {
+    use crate::arrow::array::TimestampNanosecondArray;
+    use crate::arrow::datatypes::TimeUnit;
+
+    let values = vec![1_000_000_001i64, 1_000_000_500, 1_000_000_999];
+    let schema = Arc::new(ArrowSchema::new(vec![
+        Field::new(
+            "ts",
+            ArrowDataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
+            false,
+        ),
+        Field::new(
+            "ts_ntz",
+            ArrowDataType::Timestamp(TimeUnit::Nanosecond, None),
+            false,
+        ),
+    ]));
+    let batch = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(TimestampNanosecondArray::from(values.clone()).with_timezone("UTC")),
+            Arc::new(TimestampNanosecondArray::from(values)),
+        ],
+    )
+    .unwrap();
+    let tmp = tempfile::NamedTempFile::new().unwrap();
+    let mut writer =
+        ArrowWriter::try_new(tmp.as_file().try_clone().unwrap(), schema, None).unwrap();
+    writer.write(&batch).unwrap();
+    writer.close().unwrap();
+
+    let metadata = ArrowReaderMetadata::load(tmp.as_file(), Default::default()).unwrap();
+    let row_group = metadata.metadata().row_group(0);
+
+    // Parquet stats for nanosecond timestamp columns are read at full precision,
+    // not widened like checkpoint stats.
+    let columns = Predicate::and_from(vec![column_pred!("ts"), column_pred!("ts_ntz")]);
+    let filter = RowGroupFilter::new(row_group, &columns);
+    assert_eq!(
+        filter.get_min_stat(&column_name!("ts"), &DataType::TIMESTAMP_NANOS),
+        Some(Scalar::TimestampNanos(1_000_000_001))
+    );
+    assert_eq!(
+        filter.get_max_stat(&column_name!("ts"), &DataType::TIMESTAMP_NANOS),
+        Some(Scalar::TimestampNanos(1_000_000_999))
+    );
+    assert_eq!(
+        filter.get_min_stat(&column_name!("ts_ntz"), &DataType::TIMESTAMP_NANOS_NTZ),
+        Some(Scalar::TimestampNanosNtz(1_000_000_001))
+    );
+    assert_eq!(
+        filter.get_max_stat(&column_name!("ts_ntz"), &DataType::TIMESTAMP_NANOS_NTZ),
+        Some(Scalar::TimestampNanosNtz(1_000_000_999))
+    );
+
+    assert!(!RowGroupFilter::apply(
+        row_group,
+        &Predicate::gt(col!("ts"), lit(Scalar::TimestampNanos(1_000_000_999)))
+    ));
+    assert!(!RowGroupFilter::apply(
+        row_group,
+        &Predicate::lt(
+            col!("ts_ntz"),
+            lit(Scalar::TimestampNanosNtz(1_000_000_001))
+        )
+    ));
+    assert!(RowGroupFilter::apply(
+        row_group,
+        &Predicate::gt(col!("ts"), lit(Scalar::TimestampNanos(1_000_000_500)))
     ));
 }
 
@@ -502,32 +1209,45 @@ fn test_interval_skipping_unsupported_for_any_footer_stats() {
             false,
         ),
     ];
-    for dt in [DataType::INTERVAL_YEAR_MONTH, DataType::INTERVAL_DAY_TIME] {
-        for stats in &variants {
+    for stats in variants {
+        let builder = Type::primitive_type_builder("x", stats.physical_type());
+        let builder = if stats.physical_type() == PhysicalType::FIXED_LEN_BYTE_ARRAY {
+            builder.with_length(12)
+        } else {
+            builder
+        };
+        let column = ColumnDescriptor::new(
+            Arc::new(builder.build().unwrap()),
+            0,
+            0,
+            ColumnPath::from("x"),
+        );
+        let column = ColumnChunkMetaData::builder(Arc::new(column))
+            .set_statistics(stats)
+            .build()
+            .unwrap();
+        for dt in [DataType::INTERVAL_YEAR_MONTH, DataType::INTERVAL_DAY_TIME] {
             // Call the extractor directly: the fixture has no interval column for get_min_stat
-            assert_eq!(extract_min_scalar(&dt, stats), None);
-            assert_eq!(extract_max_scalar(&dt, stats), None);
+            assert_eq!(extract_min_scalar(&dt, &column), None);
+            assert_eq!(extract_max_scalar(&dt, &column), None);
         }
     }
 }
 
-/// Wraps an Int64 leaf array in nested StructArrays matching the given column path.
+/// Wraps a leaf array in nested StructArrays matching the given column path.
 ///
-/// For `col_path = &["a", "b"]` and a leaf array `[10, 20]`, produces the Arrow structure:
+/// For `col_path = &["a", "b"]` and an Int64 leaf array `[10, 20]`, produces the Arrow structure:
 ///   `a: Struct { b: Int64 }` with values `[{b: 10}, {b: 20}]`.
 ///
 /// Returns the outermost `(field, array)` pair for embedding in a parent struct.
-fn wrap_in_nested_struct(
-    col_path: &[&str],
-    values: Arc<Int64Array>,
-) -> (Arc<Field>, Arc<dyn crate::arrow::array::Array>) {
+fn wrap_in_nested_struct(col_path: &[&str], values: ArrayRef) -> (Arc<Field>, ArrayRef) {
     assert!(!col_path.is_empty());
     let mut field = Arc::new(Field::new(
         *col_path.last().unwrap(),
-        ArrowDataType::Int64,
+        values.data_type().clone(),
         true,
     ));
-    let mut array: Arc<dyn crate::arrow::array::Array> = values;
+    let mut array: ArrayRef = values;
     for &name in col_path[..col_path.len() - 1].iter().rev() {
         let struct_array = StructArray::from(vec![(field.clone(), array)]);
         field = Arc::new(Field::new(
@@ -876,18 +1596,6 @@ fn checkpoint_filter_timestamp_max_widened() {
         Some(Scalar::TimestampNtz(1199))
     );
 
-    // Nanosecond timestamps are widened by 999_999ns: 200 + 999_999 = 1_000_199.
-    #[cfg(feature = "nanosecond-timestamps")]
-    assert_eq!(
-        filter.get_max_stat(&column_name!("x"), &DataType::TIMESTAMP_NANOS),
-        Some(Scalar::TimestampNanos(1_000_199))
-    );
-    #[cfg(feature = "nanosecond-timestamps")]
-    assert_eq!(
-        filter.get_max_stat(&column_name!("x"), &DataType::TIMESTAMP_NANOS_NTZ),
-        Some(Scalar::TimestampNanosNtz(1_000_199))
-    );
-
     // Non-timestamp types are not widened.
     assert_eq!(
         filter.get_max_stat(&column_name!("x"), &DataType::LONG),
@@ -1157,9 +1865,7 @@ fn checkpoint_filter_multi_row_group_skipping() {
     writer.close().unwrap();
 
     let file = File::open(tmp.path()).unwrap();
-    let builder =
-        crate::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder::try_new(file)
-            .unwrap();
+    let builder = parquet_reader(file);
     assert_eq!(builder.metadata().num_row_groups(), 2);
 
     let predicate = Predicate::gt(col!("x"), lit(500i64));
@@ -1243,5 +1949,254 @@ fn test_decimal_from_bytes_sign_extends_negative_stats() {
     assert_eq!(
         decimal_from_bytes(Some(&(-1i128).to_be_bytes()), dtype),
         Some(Scalar::decimal(-1, 38, 3).unwrap())
+    );
+}
+
+#[cfg(feature = "float16")]
+#[test]
+fn test_get_float16_stat_values() {
+    let values = Float16Array::from(vec![
+        f16::from_f32(1.5),
+        f16::from_f32(-2.25),
+        f16::from_f32(0.125),
+        f16::from_f32(3.5),
+    ]);
+    let schema = Arc::new(ArrowSchema::new(vec![Field::new(
+        "f16",
+        ArrowDataType::Float16,
+        true,
+    )]));
+    let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(values)]).unwrap();
+
+    let tmp = tempfile::NamedTempFile::new().unwrap();
+    let file = tmp.as_file().try_clone().unwrap();
+    let mut writer = ArrowWriter::try_new(file, schema, None).unwrap();
+    writer.write(&batch).unwrap();
+    writer.close().unwrap();
+
+    let file = File::open(tmp.path()).unwrap();
+    let metadata = ArrowReaderMetadata::load(&file, Default::default()).unwrap();
+    let columns = Predicate::and_from(vec![column_pred!("f16")]);
+    let filter = RowGroupFilter::new(metadata.metadata().row_group(0), &columns);
+
+    assert_eq!(
+        filter.get_min_stat(&column_name!("f16"), &DataType::FLOAT16),
+        Some(Scalar::Float16(f16::from_f32(-2.25)))
+    );
+    assert_eq!(
+        filter.get_max_stat(&column_name!("f16"), &DataType::FLOAT16),
+        Some(Scalar::Float16(f16::from_f32(3.5)))
+    );
+}
+
+#[cfg(feature = "float16")]
+#[test]
+fn test_float16_from_bytes() {
+    // Valid float16 bytes
+    assert_eq!(
+        float16_from_bytes(Some(&[0x00, 0x3E])),
+        Some(Scalar::Float16(f16::from_f32(1.5)))
+    );
+    // Absent bytes -> None
+    assert_eq!(float16_from_bytes(None), None);
+    // Wrong length -> None
+    assert_eq!(float16_from_bytes(Some(&[0x00])), None);
+    assert_eq!(float16_from_bytes(Some(&[0x00, 0x3E, 0x00])), None);
+}
+
+#[cfg(feature = "unsigned-integers")]
+/// Writes a single-column parquet file from `array` and returns the column-chunk statistics of its
+/// only row group, so we can verify unsigned min/max extraction end-to-end against the bytes
+/// parquet-rs actually wrote and the ordering it used to pick min/max.
+fn unsigned_column_statistics(
+    field: Field,
+    array: Arc<dyn crate::arrow::array::Array>,
+) -> ColumnChunkMetaData {
+    let schema = Arc::new(ArrowSchema::new(vec![field]));
+    let batch = RecordBatch::try_new(schema.clone(), vec![array]).unwrap();
+
+    let tmp = tempfile::NamedTempFile::new().unwrap();
+    let file = tmp.as_file().try_clone().unwrap();
+    let mut writer = ArrowWriter::try_new(file, schema, None).unwrap();
+    writer.write(&batch).unwrap();
+    writer.close().unwrap();
+
+    let reader = SerializedFileReader::new(File::open(tmp.path()).unwrap()).unwrap();
+    reader.metadata().row_group(0).column(0).clone()
+}
+
+/// Wraps footer statistics in a minimal INT32/INT64 column chunk with no logical type.
+fn column_chunk_with_stats(stats: Statistics) -> ColumnChunkMetaData {
+    let physical_type = match stats {
+        Statistics::Int32(_) => PhysicalType::INT32,
+        _ => PhysicalType::INT64,
+    };
+    let column_type = Type::primitive_type_builder("c", physical_type)
+        .build()
+        .unwrap();
+    let column = ColumnDescriptor::new(Arc::new(column_type), 0, 0, ColumnPath::from("c"));
+    ColumnChunkMetaData::builder(Arc::new(column))
+        .set_statistics(stats)
+        .build()
+        .unwrap()
+}
+
+#[cfg(feature = "unsigned-integers")]
+/// GATE TEST: verifies that parquet-rs computes unsigned column min/max with UNSIGNED ordering.
+///
+/// The uint64 values are chosen so signed vs. unsigned ordering disagree on both ends: under
+/// signed i64 ordering the min would be 2^63 (the most-negative bit pattern) and the max would be
+/// 0, whereas the correct unsigned min/max are 0 and 2^64-1. If parquet-rs picked min/max by signed
+/// ordering, the assertions below fail loudly -- meaning kernel bit-reinterpretation alone is
+/// insufficient and a writer-side ordering fix is required.
+#[test]
+fn extract_unsigned_stats_uses_unsigned_ordering() {
+    // uint64: [0, 2^63, 2^64-1]
+    let u64_field = Field::new("u64", ArrowDataType::UInt64, false);
+    let u64_array = Arc::new(UInt64Array::from(vec![
+        0u64,
+        9223372036854775808,  // 2^63
+        18446744073709551615, // 2^64-1
+    ]));
+    let u64_stats = unsigned_column_statistics(u64_field, u64_array);
+
+    assert_eq!(
+        extract_min_scalar(&DataType::UINT64, &u64_stats),
+        Some(Scalar::Uint64(0)),
+        "uint64 min must be 0 under unsigned ordering; got: {:?}",
+        extract_min_scalar(&DataType::UINT64, &u64_stats),
+    );
+    assert_eq!(
+        extract_max_scalar(&DataType::UINT64, &u64_stats),
+        Some(Scalar::Uint64(18446744073709551615)),
+        "uint64 max must be 2^64-1 under unsigned ordering; got: {:?}",
+        extract_max_scalar(&DataType::UINT64, &u64_stats),
+    );
+
+    // uint32: [0, 2^32-1]
+    let u32_field = Field::new("u32", ArrowDataType::UInt32, false);
+    let u32_array = Arc::new(UInt32Array::from(vec![0u32, 4294967295]));
+    let u32_stats = unsigned_column_statistics(u32_field, u32_array);
+
+    assert!(matches!(u32_stats.statistics(), Some(Statistics::Int32(_))));
+    assert_eq!(
+        extract_min_scalar(&DataType::UINT32, &u32_stats),
+        Some(Scalar::Uint32(0)),
+    );
+    assert_eq!(
+        extract_max_scalar(&DataType::UINT32, &u32_stats),
+        Some(Scalar::Uint32(4294967295)),
+    );
+}
+
+/// Stats read from the deprecated min/max fields were computed with signed ordering by older
+/// writers, so they must not be used for unsigned columns.
+#[cfg(feature = "unsigned-integers")]
+#[rstest::rstest]
+#[case::uint8(DataType::UINT8, Statistics::int32(Some(-56), Some(1), None, Some(0), true))]
+#[case::uint16(DataType::UINT16, Statistics::int32(Some(-1), Some(1), None, Some(0), true))]
+#[case::uint32(
+    DataType::UINT32,
+    Statistics::int32(Some(i32::MIN), Some(1), None, Some(0), true)
+)]
+#[case::uint64(
+    DataType::UINT64,
+    Statistics::int64(Some(i64::MIN), Some(1), None, Some(0), true)
+)]
+fn extract_unsigned_stats_ignores_deprecated_min_max(
+    #[case] data_type: DataType,
+    #[case] stats: Statistics,
+) {
+    assert!(stats.is_min_max_deprecated());
+    let column = column_chunk_with_stats(stats);
+    assert_eq!(extract_min_scalar(&data_type, &column), None);
+    assert_eq!(extract_max_scalar(&data_type, &column), None);
+}
+
+/// Signed integer stats from the deprecated min/max fields remain usable, since signed ordering
+/// is correct for them.
+#[test]
+fn extract_signed_stats_uses_deprecated_min_max() {
+    let stats = column_chunk_with_stats(Statistics::int64(Some(-5), Some(10), None, Some(0), true));
+    assert_eq!(
+        extract_min_scalar(&DataType::LONG, &stats),
+        Some(Scalar::Long(-5))
+    );
+    assert_eq!(
+        extract_max_scalar(&DataType::LONG, &stats),
+        Some(Scalar::Long(10))
+    );
+}
+
+/// TIME footer stats are only usable for `time(9)` when the column is annotated as nanoseconds:
+/// micro- or millisecond units and unannotated INT64 columns would be compared on the wrong scale.
+#[cfg(feature = "nanosecond-time")]
+#[rstest::rstest]
+#[case::nanos(Some(LogicalType::time(false, TimeUnit::NANOS)), Some(1_000))]
+#[case::micros(Some(LogicalType::time(false, TimeUnit::MICROS)), None)]
+#[case::unannotated(None, None)]
+#[case::timestamp_nanos(Some(LogicalType::timestamp(false, TimeUnit::NANOS)), None)]
+fn time_nanos_footer_stats_require_nanosecond_annotation(
+    #[case] logical_type: Option<LogicalType>,
+    #[case] expected: Option<i64>,
+) {
+    let column_type = Type::primitive_type_builder("t", PhysicalType::INT64)
+        .with_logical_type(logical_type)
+        .build()
+        .unwrap();
+    let column = ColumnDescriptor::new(Arc::new(column_type), 0, 0, ColumnPath::from("t"));
+    let stats = Statistics::int64(Some(1_000), Some(1_000), None, Some(0), false);
+    let column = ColumnChunkMetaData::builder(Arc::new(column))
+        .set_statistics(stats)
+        .build()
+        .unwrap();
+    let expected = expected.map(Scalar::TimeNanos);
+    assert_eq!(extract_min_scalar(&DataType::TIME_NANOS, &column), expected);
+    assert_eq!(extract_max_scalar(&DataType::TIME_NANOS, &column), expected);
+}
+
+/// Float16 footer stats are only usable from the non-deprecated min/max fields of a column
+/// annotated as FLOAT16.
+#[cfg(feature = "float16")]
+#[rstest::rstest]
+#[case::annotated(Some(LogicalType::Float16), false, true)]
+#[case::deprecated(Some(LogicalType::Float16), true, false)]
+#[case::unannotated(None, false, false)]
+fn float16_footer_stats_require_annotation_and_current_fields(
+    #[case] logical_type: Option<LogicalType>,
+    #[case] is_deprecated: bool,
+    #[case] usable: bool,
+) {
+    let column_type = Type::primitive_type_builder("f", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+        .with_length(2)
+        .with_logical_type(logical_type)
+        .build()
+        .unwrap();
+    let column = ColumnDescriptor::new(Arc::new(column_type), 0, 0, ColumnPath::from("f"));
+    let min = f16::from_f32(-2.25);
+    let max = f16::from_f32(3.5);
+    let stats = Statistics::fixed_len_byte_array(
+        Some(min.to_le_bytes().to_vec().into()),
+        Some(max.to_le_bytes().to_vec().into()),
+        None,
+        Some(0),
+        is_deprecated,
+    );
+    let column = ColumnChunkMetaData::builder(Arc::new(column))
+        .set_statistics(stats)
+        .build()
+        .unwrap();
+    let (expected_min, expected_max) = if usable {
+        (Some(Scalar::Float16(min)), Some(Scalar::Float16(max)))
+    } else {
+        (None, None)
+    };
+    assert_eq!(
+        extract_min_scalar(&DataType::FLOAT16, &column),
+        expected_min
+    );
+    assert_eq!(
+        extract_max_scalar(&DataType::FLOAT16, &column),
+        expected_max
     );
 }

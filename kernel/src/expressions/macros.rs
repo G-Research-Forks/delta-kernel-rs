@@ -175,13 +175,13 @@ use delta_kernel_derive::pub_macro;
 /// ```compile_fail,E0277
 /// # use buoyant_kernel as delta_kernel;
 /// use delta_kernel::expressions::expr;
-/// let _ = expr!(lit(1_u64));
+/// let _ = expr!(lit(1_u128));
 /// ```
 ///
 /// ```compile_fail,E0277
 /// # use buoyant_kernel as delta_kernel;
 /// use delta_kernel::expressions::expr;
-/// let _ = expr!(col("size") > 1_u64);
+/// let _ = expr!(col("size") > 1_u128);
 /// ```
 ///
 /// ```compile_fail

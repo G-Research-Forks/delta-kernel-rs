@@ -293,7 +293,6 @@ pub struct EngineSchemaVisitor {
         annotation: FfiNullableStringMap,
     ),
 
-    #[cfg(feature = "nanosecond-timestamps")]
     /// Visit a nanosecond `timestamp` belonging to the list identified by `sibling_list_id`.
     pub visit_timestamp_nanos: extern "C" fn(
         data: *mut c_void,
@@ -303,10 +302,68 @@ pub struct EngineSchemaVisitor {
         metadata: &CMetadataMap,
     ),
 
-    #[cfg(feature = "nanosecond-timestamps")]
     /// Visit a nanosecond `timestamp` with no timezone belonging to the list identified
     /// by `sibling_list_id`.
     pub visit_timestamp_nanos_ntz: extern "C" fn(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        name: KernelStringSlice,
+        is_nullable: bool,
+        metadata: &CMetadataMap,
+    ),
+
+    /// Visit a `float16` belonging to the list identified by `sibling_list_id`.
+    pub visit_float16: extern "C" fn(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        name: KernelStringSlice,
+        is_nullable: bool,
+        metadata: &CMetadataMap,
+    ),
+
+    /// EXPERIMENTAL. Visit a `uint8` (8-bit unsigned integer) belonging to the list identified
+    /// by `sibling_list_id`.
+    pub visit_uint8: extern "C" fn(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        name: KernelStringSlice,
+        is_nullable: bool,
+        metadata: &CMetadataMap,
+    ),
+
+    /// EXPERIMENTAL. Visit a `uint16` (16-bit unsigned integer) belonging to the list identified
+    /// by `sibling_list_id`.
+    pub visit_uint16: extern "C" fn(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        name: KernelStringSlice,
+        is_nullable: bool,
+        metadata: &CMetadataMap,
+    ),
+
+    /// EXPERIMENTAL. Visit a `uint32` (32-bit unsigned integer) belonging to the list identified
+    /// by `sibling_list_id`.
+    pub visit_uint32: extern "C" fn(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        name: KernelStringSlice,
+        is_nullable: bool,
+        metadata: &CMetadataMap,
+    ),
+
+    /// EXPERIMENTAL. Visit a `uint64` (64-bit unsigned integer) belonging to the list identified
+    /// by `sibling_list_id`.
+    pub visit_uint64: extern "C" fn(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        name: KernelStringSlice,
+        is_nullable: bool,
+        metadata: &CMetadataMap,
+    ),
+
+    /// EXPERIMENTAL. Visit a `time(9)` (time of day in nanoseconds since midnight, no
+    /// timezone) belonging to the list identified by `sibling_list_id`.
+    pub visit_time_nanos: extern "C" fn(
         data: *mut c_void,
         sibling_list_id: usize,
         name: KernelStringSlice,
@@ -469,6 +526,8 @@ fn visit_schema_impl(schema: &StructType, visitor: &mut EngineSchemaVisitor) -> 
             &DataType::INTEGER => call!(visit_integer),
             &DataType::SHORT => call!(visit_short),
             &DataType::BYTE => call!(visit_byte),
+            #[cfg(feature = "float16")]
+            &DataType::FLOAT16 => call!(visit_float16),
             &DataType::FLOAT => call!(visit_float),
             &DataType::DOUBLE => call!(visit_double),
             &DataType::BOOLEAN => call!(visit_boolean),
@@ -498,6 +557,16 @@ fn visit_schema_impl(schema: &StructType, visitor: &mut EngineSchemaVisitor) -> 
                     kernel_string_slice!(algorithm)
                 )
             }
+            #[cfg(feature = "nanosecond-time")]
+            &DataType::TIME_NANOS => call!(visit_time_nanos),
+            #[cfg(feature = "unsigned-integers")]
+            &DataType::UINT8 => call!(visit_uint8),
+            #[cfg(feature = "unsigned-integers")]
+            &DataType::UINT16 => call!(visit_uint16),
+            #[cfg(feature = "unsigned-integers")]
+            &DataType::UINT32 => call!(visit_uint32),
+            #[cfg(feature = "unsigned-integers")]
+            &DataType::UINT64 => call!(visit_uint64),
         }
     }
 
@@ -688,10 +757,14 @@ mod tests {
     visit_simple_type!(visit_date, "date");
     visit_simple_type!(visit_timestamp, "timestamp");
     visit_simple_type!(visit_timestamp_ntz, "timestamp_ntz");
-    #[cfg(feature = "nanosecond-timestamps")]
     visit_simple_type!(visit_timestamp_nanos, "timestamp_nanos");
-    #[cfg(feature = "nanosecond-timestamps")]
     visit_simple_type!(visit_timestamp_nanos_ntz, "timestamp_nanos_ntz");
+    visit_simple_type!(visit_float16, "float16");
+    visit_simple_type!(visit_uint8, "uint8");
+    visit_simple_type!(visit_uint16, "uint16");
+    visit_simple_type!(visit_uint32, "uint32");
+    visit_simple_type!(visit_uint64, "uint64");
+    visit_simple_type!(visit_time_nanos, "time(9)");
     visit_simple_type!(visit_interval_year_month, "interval year to month");
     visit_simple_type!(visit_interval_day_time, "interval day to second");
     visit_simple_type!(visit_void, "void");
@@ -760,16 +833,20 @@ mod tests {
             visit_date,
             visit_timestamp,
             visit_timestamp_ntz,
-            #[cfg(feature = "nanosecond-timestamps")]
-            visit_timestamp_nanos,
-            #[cfg(feature = "nanosecond-timestamps")]
-            visit_timestamp_nanos_ntz,
             visit_interval_year_month,
             visit_interval_day_time,
             visit_void,
             visit_variant,
             visit_geometry,
             visit_geography,
+            visit_timestamp_nanos,
+            visit_timestamp_nanos_ntz,
+            visit_float16,
+            visit_uint8,
+            visit_uint16,
+            visit_uint32,
+            visit_uint64,
+            visit_time_nanos,
         }
     }
 

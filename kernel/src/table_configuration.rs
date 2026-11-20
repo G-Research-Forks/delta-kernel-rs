@@ -26,10 +26,16 @@ use crate::schema::void_utils::strip_void_from_schema;
 use crate::schema::{
     schema_has_invariants, validate_column_defaults_metadata, SchemaRef, StructField, StructType,
 };
+#[cfg(feature = "float16")]
+use crate::table_features::validate_float16_feature_support;
 #[cfg(feature = "geo-type-in-dev")]
 use crate::table_features::validate_geospatial_feature_support;
+#[cfg(feature = "nanosecond-time")]
+use crate::table_features::validate_time_nanos_feature_support;
 #[cfg(feature = "nanosecond-timestamps")]
 use crate::table_features::validate_timestamp_nanos_feature_support;
+#[cfg(feature = "unsigned-integers")]
+use crate::table_features::validate_unsigned_integer_types_feature_support;
 use crate::table_features::{
     check_reader_version_range, column_mapping_mode, extract_enabled_reader_features,
     get_any_level_column_physical_name, validate_iceberg_compat_if_needed,
@@ -450,6 +456,15 @@ impl TableConfiguration {
         )?;
         #[cfg(feature = "nanosecond-timestamps")]
         validate_timestamp_nanos_feature_support(&table_config)?;
+
+        #[cfg(feature = "float16")]
+        validate_float16_feature_support(&table_config)?;
+
+        #[cfg(feature = "unsigned-integers")]
+        validate_unsigned_integer_types_feature_support(&table_config)?;
+
+        #[cfg(feature = "nanosecond-time")]
+        validate_time_nanos_feature_support(&table_config)?;
 
         Ok(table_config)
     }
@@ -1277,14 +1292,13 @@ impl TableConfiguration {
 mod test {
 
     use std::collections::HashMap;
-    use std::sync::Arc;
 
     use rstest::rstest;
 
     use super::{InCommitTimestampEnablement, StatsOutputSchemas, TableConfiguration};
     use crate::actions::{Metadata, Protocol, MIN_VALUES};
     use crate::schema::{
-        column_name, schema, schema_ref, ColumnName, DataType, SchemaRef, StructField, StructType,
+        column_name, schema, schema_ref, ColumnName, DataType, SchemaRef, StructField,
     };
     use crate::table_features::{
         ColumnMappingMode, FeatureType, Operation, TableFeature, TABLE_FEATURES_MIN_READER_VERSION,
@@ -1833,49 +1847,21 @@ mod test {
     #[case::nanos(DataType::TIMESTAMP_NANOS)]
     #[case::nanos_ntz(DataType::TIMESTAMP_NANOS_NTZ)]
     fn test_timestamp_nanos_validation_integration(#[case] ts_type: DataType) {
-        let schema = Arc::new(StructType::new_unchecked([StructField::nullable(
-            "ts", ts_type,
-        )]));
-        let metadata = Metadata::try_new(None, None, schema, vec![], 0, HashMap::new()).unwrap();
+        let schema = schema_ref! { nullable "ts": (ts_type) };
+        let config = |features: &[TableFeature]| {
+            MockTableConfigurationBuilder::new()
+                .with_schema(schema.clone())
+                .with_protocol(MockProtocolBuilder::new().with_features(features).build())
+                .try_build()
+        };
 
-        let protocol_without_timestamp_nanos_features = Protocol::try_new(
-            3,
-            7,
-            Some::<Vec<String>>(vec![]),
-            Some::<Vec<String>>(vec![]),
-        )
-        .unwrap();
-
-        let protocol_with_timestamp_nanos_features = Protocol::try_new(
-            3,
-            7,
-            Some([
-                TableFeature::TimestampNanos,
-                TableFeature::TimestampWithoutTimezone,
-            ]),
-            Some([
-                TableFeature::TimestampNanos,
-                TableFeature::TimestampWithoutTimezone,
-            ]),
-        )
-        .unwrap();
-
-        let table_root = url::Url::try_from("file:///").unwrap();
-
-        let result = TableConfiguration::try_new(
-            metadata.clone(),
-            protocol_without_timestamp_nanos_features,
-            table_root.clone(),
-            0,
-        );
+        let result = config(&[]);
         assert_result_error_with_message(result, "Unsupported: Table contains TIMESTAMP_NANOS or TIMESTAMP_NANOS_NTZ columns but does not have the required 'timestampNanos' and 'timestampNtz' features in reader and writer features");
 
-        let result = TableConfiguration::try_new(
-            metadata,
-            protocol_with_timestamp_nanos_features,
-            table_root,
-            0,
-        );
+        let result = config(&[
+            TableFeature::TimestampNanos,
+            TableFeature::TimestampWithoutTimezone,
+        ]);
         assert!(
             result.is_ok(),
             "Should succeed when nanosecond timestamps are used with required features"
@@ -1899,6 +1885,27 @@ mod test {
         assert!(
             result.is_ok(),
             "Should succeed when TIMESTAMP_NTZ is used with required features"
+        );
+    }
+
+    #[cfg(feature = "float16")]
+    #[test]
+    fn test_float16_validation_integration() {
+        let schema = schema_ref! { nullable "f16": FLOAT16 };
+        let config = |features: &[TableFeature]| {
+            MockTableConfigurationBuilder::new()
+                .with_schema(schema.clone())
+                .with_protocol(MockProtocolBuilder::new().with_features(features).build())
+                .try_build()
+        };
+
+        let result = config(&[]);
+        assert_result_error_with_message(result, "Unsupported: Table contains FLOAT16 columns but does not have the required 'float16' feature in reader and writer features");
+
+        let result = config(&[TableFeature::Float16]);
+        assert!(
+            result.is_ok(),
+            "Should succeed when FLOAT16 is used with required features"
         );
     }
 
