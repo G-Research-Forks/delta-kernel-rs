@@ -2154,3 +2154,49 @@ fn time_nanos_footer_stats_require_nanosecond_annotation(
     assert_eq!(extract_min_scalar(&DataType::TIME_NANOS, &column), expected);
     assert_eq!(extract_max_scalar(&DataType::TIME_NANOS, &column), expected);
 }
+
+/// Float16 footer stats are only usable from the non-deprecated min/max fields of a column
+/// annotated as FLOAT16.
+#[cfg(feature = "float16")]
+#[rstest::rstest]
+#[case::annotated(Some(LogicalType::Float16), false, true)]
+#[case::deprecated(Some(LogicalType::Float16), true, false)]
+#[case::unannotated(None, false, false)]
+fn float16_footer_stats_require_annotation_and_current_fields(
+    #[case] logical_type: Option<LogicalType>,
+    #[case] is_deprecated: bool,
+    #[case] usable: bool,
+) {
+    let column_type = Type::primitive_type_builder("f", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+        .with_length(2)
+        .with_logical_type(logical_type)
+        .build()
+        .unwrap();
+    let column = ColumnDescriptor::new(Arc::new(column_type), 0, 0, ColumnPath::from("f"));
+    let min = f16::from_f32(-2.25);
+    let max = f16::from_f32(3.5);
+    let stats = Statistics::fixed_len_byte_array(
+        Some(min.to_le_bytes().to_vec().into()),
+        Some(max.to_le_bytes().to_vec().into()),
+        None,
+        Some(0),
+        is_deprecated,
+    );
+    let column = ColumnChunkMetaData::builder(Arc::new(column))
+        .set_statistics(stats)
+        .build()
+        .unwrap();
+    let (expected_min, expected_max) = if usable {
+        (Some(Scalar::Float16(min)), Some(Scalar::Float16(max)))
+    } else {
+        (None, None)
+    };
+    assert_eq!(
+        extract_min_scalar(&DataType::FLOAT16, &column),
+        expected_min
+    );
+    assert_eq!(
+        extract_max_scalar(&DataType::FLOAT16, &column),
+        expected_max
+    );
+}

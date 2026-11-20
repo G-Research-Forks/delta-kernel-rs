@@ -188,6 +188,15 @@ fn extract_min_scalar(data_type: &DataType, column: &ColumnChunkMetaData) -> Opt
         (Short, _) => return None,
         (Byte, Statistics::Int32(s)) => (*s.min_opt()? as i8).into(),
         (Byte, _) => return None,
+        // Deprecated min/max fields were ordered by raw bytes, which is wrong for IEEE half
+        // floats, and an unannotated FLBA(2) column holds no float16 ordering at all.
+        #[cfg(feature = "float16")]
+        (Float16, s)
+            if s.is_min_max_deprecated()
+                || column.column_descr().logical_type_ref() != Some(&LogicalType::Float16) =>
+        {
+            return None
+        }
         #[cfg(feature = "float16")]
         (Float16, Statistics::FixedLenByteArray(b)) => float16_from_bytes(b.min_bytes_opt())?,
         #[cfg(feature = "float16")]
@@ -284,6 +293,15 @@ fn extract_max_scalar(data_type: &DataType, column: &ColumnChunkMetaData) -> Opt
         (Short, _) => return None,
         (Byte, Statistics::Int32(s)) => (*s.max_opt()? as i8).into(),
         (Byte, _) => return None,
+        // Deprecated min/max fields were ordered by raw bytes, which is wrong for IEEE half
+        // floats, and an unannotated FLBA(2) column holds no float16 ordering at all.
+        #[cfg(feature = "float16")]
+        (Float16, s)
+            if s.is_min_max_deprecated()
+                || column.column_descr().logical_type_ref() != Some(&LogicalType::Float16) =>
+        {
+            return None
+        }
         #[cfg(feature = "float16")]
         (Float16, Statistics::FixedLenByteArray(b)) => float16_from_bytes(b.max_bytes_opt())?,
         #[cfg(feature = "float16")]
