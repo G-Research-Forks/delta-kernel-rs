@@ -1981,9 +1981,19 @@ pub enum PrimitiveType {
     Timestamp,
     #[serde(rename = "timestamp_ntz")]
     TimestampNtz,
+    /// Nanosecond precision timestamp, adjusted to UTC: an `i64` count of nanoseconds since the
+    /// Unix epoch.
+    ///
+    /// Requires the `nanosecond-timestamps` Cargo feature. A table with a column of this type
+    /// must support both the `timestampNanos` and `timestampNtz` table features.
     #[cfg(feature = "nanosecond-timestamps")]
     #[serde(rename = "timestamp_nanos")]
     TimestampNanos,
+    /// Nanosecond precision timestamp without a timezone: an `i64` count of nanoseconds since
+    /// 1970-01-01 00:00:00.
+    ///
+    /// Requires the `nanosecond-timestamps` Cargo feature. A table with a column of this type
+    /// must support both the `timestampNanos` and `timestampNtz` table features.
     #[cfg(feature = "nanosecond-timestamps")]
     #[serde(rename = "timestamp_nanos_ntz")]
     TimestampNanosNtz,
@@ -2479,8 +2489,12 @@ impl DataType {
     pub const DATE: Self = DataType::Primitive(PrimitiveType::Date);
     pub const TIMESTAMP: Self = DataType::Primitive(PrimitiveType::Timestamp);
     pub const TIMESTAMP_NTZ: Self = DataType::Primitive(PrimitiveType::TimestampNtz);
+    /// UTC-adjusted nanosecond timestamp. See [`PrimitiveType::TimestampNanos`] for its
+    /// representation and table-feature requirements.
     #[cfg(feature = "nanosecond-timestamps")]
     pub const TIMESTAMP_NANOS: Self = DataType::Primitive(PrimitiveType::TimestampNanos);
+    /// Nanosecond timestamp without a timezone. See [`PrimitiveType::TimestampNanosNtz`] for its
+    /// representation and table-feature requirements.
     #[cfg(feature = "nanosecond-timestamps")]
     pub const TIMESTAMP_NANOS_NTZ: Self = DataType::Primitive(PrimitiveType::TimestampNanosNtz);
     pub const VOID: Self = DataType::Primitive(PrimitiveType::Void);
