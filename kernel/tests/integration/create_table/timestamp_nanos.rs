@@ -7,7 +7,13 @@
 use std::sync::Arc;
 
 use buoyant_kernel as delta_kernel;
+use delta_kernel::arrow::datatypes::{
+    DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema, TimeUnit,
+};
 use delta_kernel::committer::FileSystemCommitter;
+use delta_kernel::engine::arrow_conversion::TryFromArrow as _;
+#[cfg(feature = "udt-in-dev")]
+use delta_kernel::schema::{ArrayType, MapType, UserDefinedType};
 use delta_kernel::schema::{DataType, StructField, StructType};
 use delta_kernel::snapshot::Snapshot;
 use delta_kernel::table_features::{
@@ -15,7 +21,7 @@ use delta_kernel::table_features::{
     TABLE_FEATURES_MIN_WRITER_VERSION,
 };
 use delta_kernel::transaction::create_table::create_table;
-use delta_kernel::KernelResult;
+use delta_kernel::{KernelError, KernelResult};
 use test_utils::{
     cm_properties, multiple_nanots_ntz_schema, multiple_nanots_schema, nested_nanots_ntz_schema,
     nested_nanots_schema, test_table_setup, top_level_nanots_ntz_schema, top_level_nanots_schema,
@@ -202,6 +208,90 @@ fn test_create_table_timestamp_nanos_with_timestamp_ntz_column_no_duplicate_feat
             );
         }
     }
+
+    Ok(())
+}
+
+/// A nanosecond timestamp used as, or nested in, a UDT's physical type enables timestampNanos.
+#[cfg(feature = "udt-in-dev")]
+#[rstest::rstest]
+fn test_create_table_timestamp_nanos_inside_udt(
+    #[values(DataType::TIMESTAMP_NANOS, DataType::TIMESTAMP_NANOS_NTZ)] ts_type: DataType,
+    #[values("direct", "struct", "array", "map")] shape: &str,
+) -> KernelResult<()> {
+    let sql_type = match shape {
+        "direct" => ts_type,
+        "struct" => StructType::try_new([StructField::nullable("inner_ts", ts_type)])?.into(),
+        "array" => ArrayType::new(ts_type, true).into(),
+        "map" => MapType::new(DataType::STRING, ts_type, true).into(),
+        _ => unreachable!(),
+    };
+    let udt = UserDefinedType::try_new(
+        sql_type,
+        [("class".to_owned(), Some("Ts".to_owned()))].into(),
+    )?;
+    let schema = Arc::new(StructType::try_new([
+        StructField::not_null("id", DataType::INTEGER),
+        StructField::nullable("udt", udt),
+    ])?);
+
+    let (_temp_dir, table_path, engine) = test_table_setup()?;
+    let _ = create_table(&table_path, schema.clone(), "Test/1.0", true)
+        .build(engine.as_ref(), Box::new(FileSystemCommitter::new()))?
+        .commit(engine.as_ref())?;
+
+    let table_url = delta_kernel::try_parse_uri(&table_path)?;
+    let snapshot = Snapshot::builder_for(table_url).build(engine.as_ref())?;
+    assert_timestamp_nanos_protocol(&snapshot);
+    assert_eq!(snapshot.schema().as_ref(), schema.as_ref());
+
+    Ok(())
+}
+
+/// A schema converted from Arrow nanosecond timestamps creates nanosecond columns and enables
+/// timestampNanos, while microsecond timestamps keep the microsecond types.
+#[test]
+fn test_create_table_from_arrow_nanosecond_schema_enables_timestamp_nanos() -> KernelResult<()> {
+    let arrow_schema = ArrowSchema::new(vec![
+        ArrowField::new("id", ArrowDataType::Int32, false),
+        ArrowField::new(
+            "ts",
+            ArrowDataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
+            true,
+        ),
+        ArrowField::new(
+            "ts_ntz",
+            ArrowDataType::Timestamp(TimeUnit::Nanosecond, None),
+            true,
+        ),
+        ArrowField::new(
+            "ts_us",
+            ArrowDataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
+            true,
+        ),
+        ArrowField::new(
+            "ts_ntz_us",
+            ArrowDataType::Timestamp(TimeUnit::Microsecond, None),
+            true,
+        ),
+    ]);
+    let schema = Arc::new(StructType::try_from_arrow(&arrow_schema).map_err(KernelError::from)?);
+
+    let (_temp_dir, table_path, engine) = test_table_setup()?;
+    let _ = create_table(&table_path, schema, "Test/1.0", true)
+        .build(engine.as_ref(), Box::new(FileSystemCommitter::new()))?
+        .commit(engine.as_ref())?;
+
+    let table_url = delta_kernel::try_parse_uri(&table_path)?;
+    let snapshot = Snapshot::builder_for(table_url).build(engine.as_ref())?;
+    assert_timestamp_nanos_protocol(&snapshot);
+
+    let read_schema = snapshot.schema();
+    let field_type = |name: &str| read_schema.field(name).unwrap().data_type().clone();
+    assert_eq!(field_type("ts"), DataType::TIMESTAMP_NANOS);
+    assert_eq!(field_type("ts_ntz"), DataType::TIMESTAMP_NANOS_NTZ);
+    assert_eq!(field_type("ts_us"), DataType::TIMESTAMP);
+    assert_eq!(field_type("ts_ntz_us"), DataType::TIMESTAMP_NTZ);
 
     Ok(())
 }

@@ -648,7 +648,7 @@ impl TryFromArrow<&ArrowDataType> for DataType {
                 Ok(DataType::TIMESTAMP)
             }
             // Fall back to converting nanosecond timestamps to microsecond when the
-            // nanosecond-timestamp feature is not enabled.
+            // `nanosecond-timestamps` feature is not enabled.
             #[cfg(not(feature = "nanosecond-timestamps"))]
             ArrowDataType::Timestamp(TimeUnit::Nanosecond, None) => Ok(DataType::TIMESTAMP_NTZ),
             #[cfg(not(feature = "nanosecond-timestamps"))]
@@ -820,6 +820,21 @@ mod tests {
         let ntz = DataType::try_from_arrow(&ArrowDataType::Timestamp(TimeUnit::Millisecond, None))?;
         assert_eq!(ntz, DataType::TIMESTAMP_NTZ);
 
+        Ok(())
+    }
+
+    // Without `nanosecond-timestamps`, nanosecond Arrow timestamps map to the microsecond types,
+    // so tables created from such schemas do not require the `timestampNanos` feature.
+    #[cfg(not(feature = "nanosecond-timestamps"))]
+    #[rstest]
+    #[case::utc(Some("UTC"), DataType::TIMESTAMP)]
+    #[case::ntz(None, DataType::TIMESTAMP_NTZ)]
+    fn test_nanosecond_timestamp_converts_to_microsecond_type_without_feature(
+        #[case] timezone: Option<&str>,
+        #[case] expected: DataType,
+    ) -> KernelResult<()> {
+        let arrow_type = ArrowDataType::Timestamp(TimeUnit::Nanosecond, timezone.map(Into::into));
+        assert_eq!(DataType::try_from_arrow(&arrow_type)?, expected);
         Ok(())
     }
 
