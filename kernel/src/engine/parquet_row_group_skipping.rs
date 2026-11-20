@@ -218,7 +218,9 @@ fn extract_min_scalar(data_type: &DataType, column: &ColumnChunkMetaData) -> Opt
         #[cfg(feature = "nanosecond-timestamps")]
         (TimestampNanosNtz, _) => return None,
         #[cfg(feature = "nanosecond-time")]
-        (TimeNanos, Statistics::Int64(s)) => Scalar::TimeNanos(*s.min_opt()?),
+        (TimeNanos, Statistics::Int64(s)) if is_nanos_time_column(column.column_descr()) => {
+            Scalar::TimeNanos(*s.min_opt()?)
+        }
         #[cfg(feature = "nanosecond-time")]
         (TimeNanos, _) => return None,
         (Timestamp, Statistics::Int64(s)) => Scalar::Timestamp(timestamp_stat_as_micros(
@@ -312,7 +314,9 @@ fn extract_max_scalar(data_type: &DataType, column: &ColumnChunkMetaData) -> Opt
         #[cfg(feature = "nanosecond-timestamps")]
         (TimestampNanosNtz, _) => return None,
         #[cfg(feature = "nanosecond-time")]
-        (TimeNanos, Statistics::Int64(s)) => Scalar::TimeNanos(*s.max_opt()?),
+        (TimeNanos, Statistics::Int64(s)) if is_nanos_time_column(column.column_descr()) => {
+            Scalar::TimeNanos(*s.max_opt()?)
+        }
         #[cfg(feature = "nanosecond-time")]
         (TimeNanos, _) => return None,
         (Timestamp, Statistics::Int64(s)) => Scalar::Timestamp(timestamp_stat_as_micros(
@@ -444,6 +448,17 @@ fn timestamp_stat_unit(column: &ColumnDescriptor) -> Option<TimeUnit> {
             _ => None,
         },
     }
+}
+
+/// Returns whether a column is annotated as a nanosecond TIME, the only encoding whose footer stats
+/// are in the units of the `time(9)` read type. Any other annotation, or none, means the stats
+/// cannot be compared against nanosecond predicate values.
+#[cfg(feature = "nanosecond-time")]
+fn is_nanos_time_column(column: &ColumnDescriptor) -> bool {
+    matches!(
+        column.logical_type_ref(),
+        Some(LogicalType::Time(time)) if time.unit == TimeUnit::NANOS
+    )
 }
 
 /// Checks whether a parquet column has any null values in a row group, based on its footer stats.

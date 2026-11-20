@@ -2127,3 +2127,30 @@ fn extract_signed_stats_uses_deprecated_min_max() {
         Some(Scalar::Long(10))
     );
 }
+
+/// TIME footer stats are only usable for `time(9)` when the column is annotated as nanoseconds:
+/// micro- or millisecond units and unannotated INT64 columns would be compared on the wrong scale.
+#[cfg(feature = "nanosecond-time")]
+#[rstest::rstest]
+#[case::nanos(Some(LogicalType::time(false, TimeUnit::NANOS)), Some(1_000))]
+#[case::micros(Some(LogicalType::time(false, TimeUnit::MICROS)), None)]
+#[case::unannotated(None, None)]
+#[case::timestamp_nanos(Some(LogicalType::timestamp(false, TimeUnit::NANOS)), None)]
+fn time_nanos_footer_stats_require_nanosecond_annotation(
+    #[case] logical_type: Option<LogicalType>,
+    #[case] expected: Option<i64>,
+) {
+    let column_type = Type::primitive_type_builder("t", PhysicalType::INT64)
+        .with_logical_type(logical_type)
+        .build()
+        .unwrap();
+    let column = ColumnDescriptor::new(Arc::new(column_type), 0, 0, ColumnPath::from("t"));
+    let stats = Statistics::int64(Some(1_000), Some(1_000), None, Some(0), false);
+    let column = ColumnChunkMetaData::builder(Arc::new(column))
+        .set_statistics(stats)
+        .build()
+        .unwrap();
+    let expected = expected.map(Scalar::TimeNanos);
+    assert_eq!(extract_min_scalar(&DataType::TIME_NANOS, &column), expected);
+    assert_eq!(extract_max_scalar(&DataType::TIME_NANOS, &column), expected);
+}
