@@ -7,6 +7,8 @@ use std::sync::Arc;
 
 use buoyant_kernel as delta_kernel;
 use delta_kernel::committer::FileSystemCommitter;
+#[cfg(feature = "udt-in-dev")]
+use delta_kernel::schema::UserDefinedType;
 use delta_kernel::schema::{ArrayType, DataType, MapType, SchemaRef, StructField, StructType};
 use delta_kernel::snapshot::Snapshot;
 use delta_kernel::table_features::{
@@ -91,5 +93,47 @@ fn test_create_table_without_time_nanos_does_not_enable_feature() -> KernelResul
     assert!(!snapshot
         .table_configuration()
         .is_feature_supported(&TableFeature::TimeNanos));
+    Ok(())
+}
+
+/// The feature is enabled when the type is used as, or nested in, a UDT's physical type.
+#[cfg(feature = "udt-in-dev")]
+#[rstest::rstest]
+fn test_create_table_time_nanos_inside_udt(
+    #[values(DataType::TIME_NANOS)] data_type: DataType,
+    #[values("direct", "struct", "array", "map")] shape: &str,
+) -> KernelResult<()> {
+    let sql_type = match shape {
+        "direct" => data_type,
+        "struct" => StructType::try_new([StructField::nullable("inner", data_type)])?.into(),
+        "array" => ArrayType::new(data_type, true).into(),
+        "map" => MapType::new(DataType::STRING, data_type, true).into(),
+        _ => unreachable!(),
+    };
+    let udt = UserDefinedType::try_new(
+        sql_type,
+        [("class".to_owned(), Some("Udt".to_owned()))].into(),
+    )?;
+    let schema = Arc::new(StructType::try_new([
+        StructField::not_null("id", DataType::INTEGER),
+        StructField::nullable("udt", udt),
+    ])?);
+
+    let (_temp_dir, table_path, engine) = test_table_setup()?;
+    let _ = create_table(&table_path, schema.clone(), "Test/1.0", true)
+        .build(engine.as_ref(), Box::new(FileSystemCommitter::new()))?
+        .commit(engine.as_ref())?;
+
+    let table_url = delta_kernel::try_parse_uri(&table_path)?;
+    let snapshot = Snapshot::builder_for(table_url).build(engine.as_ref())?;
+    let protocol = snapshot.table_configuration().protocol();
+    assert!(protocol
+        .reader_features()
+        .is_some_and(|f| f.contains(&TableFeature::TimeNanos)));
+    assert!(protocol
+        .writer_features()
+        .is_some_and(|f| f.contains(&TableFeature::TimeNanos)));
+    assert_eq!(snapshot.schema().as_ref(), schema.as_ref());
+
     Ok(())
 }
