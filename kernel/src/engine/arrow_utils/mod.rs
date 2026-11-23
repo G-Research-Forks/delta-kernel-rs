@@ -1328,8 +1328,9 @@ fn decode_with_arrow_json<'a>(
     ))
 }
 
-/// Rewrites failure-prone primitives (every timestamp flavor, plus `Date` and `Decimal`) to
-/// `String` so the typed decoder accepts any well-formed JSON string for those cells.
+/// Rewrites failure-prone primitives (every timestamp and time flavor, plus `Date` and
+/// `Decimal`) to `String` so the typed decoder accepts any well-formed JSON string for those
+/// cells.
 ///
 /// `Array`/`Map`/`Variant` are not visited: Delta doesn't track min/max stats for them,
 /// so a failure-prone leaf only ever shows up inside a `Struct` for our callers.
@@ -1344,6 +1345,8 @@ impl<'a> SchemaTransform<'a> for StringifyFailureProneLeaves {
             Timestamp | TimestampNtz | Date | Decimal(_) => Cow::Owned(String),
             #[cfg(feature = "nanosecond-timestamps")]
             TimestampNanos | TimestampNanosNtz => Cow::Owned(String),
+            #[cfg(feature = "nanosecond-time")]
+            TimeNanos => Cow::Owned(String),
             _ => Cow::Borrowed(ptype),
         }
     }
@@ -1979,6 +1982,17 @@ mod tests {
                 r#"{"v": "2024-01-01T00:00:00"}"#,
                 r#"{"v": "9999-12-31T23:59:59.999"}"#,
                 r#"{"v": "2025-06-01T00:00:00"}"#,
+            ],
+        )
+    )]
+    #[cfg_attr(
+        feature = "nanosecond-time",
+        case::time_nanos_out_of_range_hour(
+            DataType::TIME_NANOS,
+            &[
+                r#"{"v": "00:00:00"}"#,
+                r#"{"v": "25:00:00"}"#,
+                r#"{"v": "23:59:59.999999999"}"#,
             ],
         )
     )]
