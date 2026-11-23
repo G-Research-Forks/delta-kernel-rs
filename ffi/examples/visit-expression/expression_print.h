@@ -174,6 +174,9 @@ void print_tree_helper(ExpressionItem ref, int depth) {
         case Uint64:
           printf("Uint64(%llu)\n", (unsigned long long)lit->value.uint64_data);
           break;
+        case Float16:
+          printf("Float16(0x%04x)\n", (unsigned)lit->value.float16_bits);
+          break;
         case Float:
           printf("Float(%f)\n", (float)lit->value.float_data);
           break;

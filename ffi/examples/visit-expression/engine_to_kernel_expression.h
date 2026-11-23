@@ -80,6 +80,16 @@ uintptr_t convert_engine_to_kernel_literal(
       fprintf(stderr, "Unsigned integer literals require DEFINE_UNSIGNED_INTEGERS\n");
       abort();
 #endif
+    case Float16: {
+      ExternResultusize result =
+          visit_expression_literal_float16(state, lit->value.float16_bits, allocate_error);
+      if (result.tag == Errusize) {
+        print_error("visit_expression_literal_float16 failed", (Error*)result.err);
+        free_error((Error*)result.err);
+        abort();
+      }
+      return result.ok;
+    }
     case Float:
       return visit_expression_literal_float(state, lit->value.float_data);
     case Double:

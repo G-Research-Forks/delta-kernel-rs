@@ -43,6 +43,7 @@ enum LitType {
   Uint16,
   Uint32,
   Uint64,
+  Float16,
   Float,
   Double,
   String,
@@ -181,6 +182,7 @@ struct Literal {
     uint16_t uint16_data;
     uint32_t uint32_data;
     uint64_t uint64_data;
+    uint16_t float16_bits; // raw IEEE 754 binary16 bits
     float float_data;
     double double_data;
     bool boolean_data;
@@ -257,6 +259,7 @@ DEFINE_SIMPLE_SCALAR(visit_expr_uint8_literal, Uint8, uint8_t, uint8_data);
 DEFINE_SIMPLE_SCALAR(visit_expr_uint16_literal, Uint16, uint16_t, uint16_data);
 DEFINE_SIMPLE_SCALAR(visit_expr_uint32_literal, Uint32, uint32_t, uint32_data);
 DEFINE_SIMPLE_SCALAR(visit_expr_uint64_literal, Uint64, uint64_t, uint64_data);
+DEFINE_SIMPLE_SCALAR(visit_expr_float16_literal, Float16, uint16_t, float16_bits);
 DEFINE_SIMPLE_SCALAR(visit_expr_float_literal, Float, float, float_data);
 DEFINE_SIMPLE_SCALAR(visit_expr_double_literal, Double, double, double_data);
 DEFINE_SIMPLE_SCALAR(visit_expr_boolean_literal, Boolean, _Bool, boolean_data);
@@ -547,6 +550,7 @@ ExpressionItemList construct_expression(SharedExpression* expression) {
     .visit_literal_uint16 = visit_expr_uint16_literal,
     .visit_literal_uint32 = visit_expr_uint32_literal,
     .visit_literal_uint64 = visit_expr_uint64_literal,
+    .visit_literal_float16 = visit_expr_float16_literal,
     .visit_literal_float = visit_expr_float_literal,
     .visit_literal_double = visit_expr_double_literal,
     .visit_literal_bool = visit_expr_boolean_literal,
@@ -608,6 +612,7 @@ ExpressionItemList construct_predicate(SharedPredicate* predicate) {
     .visit_literal_uint16 = visit_expr_uint16_literal,
     .visit_literal_uint32 = visit_expr_uint32_literal,
     .visit_literal_uint64 = visit_expr_uint64_literal,
+    .visit_literal_float16 = visit_expr_float16_literal,
     .visit_literal_float = visit_expr_float_literal,
     .visit_literal_double = visit_expr_double_literal,
     .visit_literal_bool = visit_expr_boolean_literal,
@@ -741,6 +746,7 @@ void free_expression_item(ExpressionItem ref) {
         case Uint16:
         case Uint32:
         case Uint64:
+        case Float16:
         case Float:
         case Double:
         case Boolean:

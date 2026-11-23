@@ -343,6 +343,7 @@ DEFINE_VISIT_SIMPLE_TYPE(uint16)
 DEFINE_VISIT_SIMPLE_TYPE(uint32)
 DEFINE_VISIT_SIMPLE_TYPE(uint64)
 DEFINE_VISIT_SIMPLE_TYPE(long)
+DEFINE_VISIT_SIMPLE_TYPE(float16)
 DEFINE_VISIT_SIMPLE_TYPE(float)
 DEFINE_VISIT_SIMPLE_TYPE(double)
 DEFINE_VISIT_SIMPLE_TYPE(boolean)
@@ -475,6 +476,7 @@ CSchema* build_cschema(SharedSchema* schema, SharedExternEngine* engine)
     .visit_uint16 = visit_uint16,
     .visit_uint32 = visit_uint32,
     .visit_uint64 = visit_uint64,
+    .visit_float16 = visit_float16,
     .visit_float = visit_float,
     .visit_double = visit_double,
     .visit_boolean = visit_boolean,
