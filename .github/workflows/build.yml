@@ -510,11 +510,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-      - name: Install minimal stable with clippy
+      - name: Install the datafusion-executor toolchain with clippy
         uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1.15.4
         with:
           cache: false
           components: clippy
+          # Use datafusion-executor/rust-toolchain.toml rather than the root one.
+          rust-src-dir: datafusion-executor
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: datafusion-executor
