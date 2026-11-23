@@ -20,7 +20,7 @@ use delta_kernel::arrow::datatypes::{
 };
 use delta_kernel::engine::arrow_conversion::TryFromKernel as _;
 use delta_kernel::engine::arrow_data::EngineDataArrowExt as _;
-#[cfg(feature = "nanosecond-timestamps")]
+#[cfg(any(feature = "nanosecond-timestamps", feature = "float16"))]
 use delta_kernel::expressions::BinaryPredicateOp;
 use delta_kernel::expressions::{
     col, column_pred, lit, null_lit, Expression as Expr, ExpressionRef, Predicate as Pred,
@@ -1684,6 +1684,40 @@ fn float16() -> Result<(), Box<dyn std::error::Error>> {
         "+----+-------+",
     ];
     read_table_data_str("./tests/data/float16/", None, None, expected)?;
+    Ok(())
+}
+
+/// The float16 table holds a NaN, which orders above every finite value, so its max stat is NaN
+/// and a greater-than predicate past the finite values must keep the file.
+#[cfg(feature = "float16")]
+#[rstest::rstest]
+#[case::gt_nan_keeps(BinaryPredicateOp::GreaterThan, 2.0, 1)]
+#[case::lt_below_min_skips(BinaryPredicateOp::LessThan, -3.0, 0)]
+fn float16_stats_skipping_scan_file_count(
+    #[case] op: BinaryPredicateOp,
+    #[case] value: f32,
+    #[case] expected_files: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let predicate = Pred::binary(
+        op,
+        Expr::column(["f16"]),
+        lit(Scalar::Float16(half::f16::from_f32(value))),
+    );
+
+    let path = std::fs::canonicalize(PathBuf::from("./tests/data/float16"))?;
+    let url = Url::from_directory_path(path).unwrap();
+    let engine = test_utils::create_default_engine(&url)?;
+    let snapshot = Snapshot::builder_for(url).build(engine.as_ref())?;
+    let scan = snapshot
+        .scan_builder()
+        .with_predicate(Arc::new(predicate))
+        .build()?;
+
+    let mut scan_files: Vec<ScanFile> = vec![];
+    for res in scan.scan_metadata(engine.as_ref())? {
+        scan_files = res?.visit_scan_files(scan_files, scan_metadata_callback)?;
+    }
+    assert_eq!(scan_files.len(), expected_files);
     Ok(())
 }
 

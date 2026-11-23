@@ -70,7 +70,9 @@ def write_log(log_dir: Path, file_name: str, file_size: int) -> None:
         {
             "numRecords": 5,
             "minValues": {"id": 0, "f16": -2.25},
-            "maxValues": {"id": 4, "f16": 1.5},
+            # The column holds a NaN, which orders above every finite value, so the only
+            # conservative max is NaN itself. JSON stats cannot carry it, so the max is omitted.
+            "maxValues": {"id": 4},
             "nullCount": {"id": 0, "f16": 1},
         }
     )
