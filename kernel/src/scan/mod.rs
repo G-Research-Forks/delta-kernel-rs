@@ -680,6 +680,17 @@ fn can_statically_skip_all_files(predicate: &Predicate) -> bool {
     evaluator.eval_sql_where(predicate) == Some(false)
 }
 
+// Whether a column can hold NaN. Parquet footer min/max exclude NaNs, so they cannot bound every
+// value of such a partition column during checkpoint skipping.
+fn is_floating_point(data_type: &DataType) -> bool {
+    match data_type {
+        &DataType::FLOAT | &DataType::DOUBLE => true,
+        #[cfg(feature = "float16")]
+        &DataType::FLOAT16 => true,
+        _ => false,
+    }
+}
+
 // Build the stats read schema filtering the table schema to keep only skipping-eligible
 // leaf fields that the skipping expression actually references. Also extract physical name
 // mappings so we can access the correct physical stats column for each logical column.
@@ -1322,7 +1333,7 @@ impl Scan {
         if let Some(schema) = self.state_info.physical_partition_schema.as_ref() {
             for field in schema.fields() {
                 let column = ColumnName::new([field.name()]);
-                if field.data_type() == &DataType::FLOAT || field.data_type() == &DataType::DOUBLE {
+                if is_floating_point(field.data_type()) {
                     floating_partition_columns.insert(column.clone());
                 }
                 partition_columns.insert(column);
