@@ -83,6 +83,8 @@ uintptr_t visit_schema_item(SchemaItem* item, KernelSchemaVisitorState *state, C
   } else if (strcmp(item->type, "uint64") == 0) {
     visit_res = visit_field_uint64(state, name, item->is_nullable, &metadata, allocate_error);
 #endif
+  } else if (strcmp(item->type, "float16") == 0) {
+    visit_res = visit_field_float16(state, name, item->is_nullable, &metadata, allocate_error);
   } else if (strcmp(item->type, "float") == 0) {
     visit_res = visit_field_float(state, name, item->is_nullable, &metadata, allocate_error);
   } else if (strcmp(item->type, "double") == 0) {
