@@ -181,7 +181,10 @@ pub(crate) enum TableFeature {
     #[strum(to_string = "timestampNtz", serialize = "timestampWithoutTimezone")]
     #[serde(rename = "timestampNtz", alias = "timestampWithoutTimezone")]
     TimestampWithoutTimezone,
-    /// Float16 primitive datatype
+    /// Float16 primitive datatype. Experimental: serializes to the bare name `float16`, without
+    /// the `-dev` suffix the other in-development features use, because tables written by earlier
+    /// releases of this fork already list `float16` in their protocol. Renaming it would make
+    /// those tables unreadable.
     #[cfg(feature = "float16")]
     Float16,
     /// Nanosecond resolution timestamps
