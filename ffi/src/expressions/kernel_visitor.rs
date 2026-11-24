@@ -858,8 +858,8 @@ impl NullTypeTag {
             #[cfg(feature = "float16")]
             Self::Float16 => Ok(DataType::FLOAT16),
             #[cfg(not(feature = "float16"))]
-            Self::Float16 => Err(delta_kernel::KernelError::generic(
-                "Experimental Cargo feature `float16` not enabled",
+            Self::Float16 => Err(delta_kernel::KernelError::unsupported(
+                "`float16` feature not enabled in delta-kernel",
             )),
             #[cfg(feature = "unsigned-integers")]
             Self::Uint8 => Ok(DataType::UINT8),
@@ -870,9 +870,11 @@ impl NullTypeTag {
             #[cfg(feature = "unsigned-integers")]
             Self::Uint64 => Ok(DataType::UINT64),
             #[cfg(not(feature = "unsigned-integers"))]
-            Self::Uint8 | Self::Uint16 | Self::Uint32 | Self::Uint64 => Err(
-                delta_kernel::KernelError::generic("`unsigned-integers` Cargo feature not enabled"),
-            ),
+            Self::Uint8 | Self::Uint16 | Self::Uint32 | Self::Uint64 => {
+                Err(delta_kernel::KernelError::unsupported(
+                    "`unsigned-integers` feature not enabled in delta-kernel",
+                ))
+            }
             Self::Float => Ok(DataType::FLOAT),
             Self::Double => Ok(DataType::DOUBLE),
             Self::String => Ok(DataType::STRING),
@@ -891,8 +893,8 @@ impl NullTypeTag {
             #[cfg(feature = "nanosecond-timestamps")]
             Self::TimestampNanosNtz => Ok(DataType::TIMESTAMP_NANOS_NTZ),
             #[cfg(not(feature = "nanosecond-time"))]
-            Self::TimeNanos => Err(delta_kernel::KernelError::generic(
-                "`nanosecond-time` Cargo feature not enabled",
+            Self::TimeNanos => Err(delta_kernel::KernelError::unsupported(
+                "`nanosecond-time` feature not enabled in delta-kernel",
             )),
             #[cfg(feature = "nanosecond-time")]
             Self::TimeNanos => Ok(DataType::TIME_NANOS),
@@ -1329,10 +1331,45 @@ mod tests {
         assert_eq!(tag.to_data_type(0, 0).unwrap(), expected);
     }
 
-    #[cfg(not(feature = "nanosecond-timestamps"))]
+    #[cfg(not(all(
+        feature = "float16",
+        feature = "unsigned-integers",
+        feature = "nanosecond-timestamps",
+        feature = "nanosecond-time"
+    )))]
     #[rstest]
-    fn to_data_type_timestamp_nanos_requires_feature(
-        #[values(NullTypeTag::TimestampNanos, NullTypeTag::TimestampNanosNtz)] tag: NullTypeTag,
+    #[cfg_attr(not(feature = "float16"), case(NullTypeTag::Float16, "float16"))]
+    #[cfg_attr(
+        not(feature = "unsigned-integers"),
+        case(NullTypeTag::Uint8, "unsigned-integers")
+    )]
+    #[cfg_attr(
+        not(feature = "unsigned-integers"),
+        case(NullTypeTag::Uint16, "unsigned-integers")
+    )]
+    #[cfg_attr(
+        not(feature = "unsigned-integers"),
+        case(NullTypeTag::Uint32, "unsigned-integers")
+    )]
+    #[cfg_attr(
+        not(feature = "unsigned-integers"),
+        case(NullTypeTag::Uint64, "unsigned-integers")
+    )]
+    #[cfg_attr(
+        not(feature = "nanosecond-timestamps"),
+        case(NullTypeTag::TimestampNanos, "nanosecond-timestamps")
+    )]
+    #[cfg_attr(
+        not(feature = "nanosecond-timestamps"),
+        case(NullTypeTag::TimestampNanosNtz, "nanosecond-timestamps")
+    )]
+    #[cfg_attr(
+        not(feature = "nanosecond-time"),
+        case(NullTypeTag::TimeNanos, "nanosecond-time")
+    )]
+    fn to_data_type_feature_gated_tag_is_unsupported_without_feature(
+        #[case] tag: NullTypeTag,
+        #[case] feature: &str,
     ) {
         let error = tag.to_data_type(0, 0).unwrap_err();
         assert!(
@@ -1343,7 +1380,9 @@ mod tests {
             "{error}"
         );
         assert!(
-            error.to_string().contains("nanosecond-timestamps"),
+            error
+                .to_string()
+                .contains(&format!("`{feature}` feature not enabled")),
             "{error}"
         );
     }
