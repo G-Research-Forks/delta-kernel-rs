@@ -129,8 +129,8 @@ pending removals.
 This example removes the first file from a filesystem-backed table:
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # extern crate tokio;
 # use std::sync::Arc;
 # use delta_kernel::committer::FileSystemCommitter;

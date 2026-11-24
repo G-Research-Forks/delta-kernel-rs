@@ -10,6 +10,8 @@ use delta_kernel::expressions::{
 };
 use delta_kernel::schema::{DataType, PrimitiveType};
 use delta_kernel::KernelResult;
+#[cfg(feature = "float16")]
+use half::f16;
 
 #[cfg(feature = "default-engine-base")]
 use crate::expressions::opaque_eval::{COpaqueEvalCallbacks, FfiOpaqueEvalCallbacks};
@@ -335,6 +337,117 @@ pub extern "C" fn visit_expression_literal_byte(
     wrap_expression(state, lit(value))
 }
 
+/// EXPERIMENTAL. Visit a 8-bit unsigned `uint8` literal and return its expression id.
+///
+/// Returns an error if kernel was not built with the `unsigned-integers` feature.
+#[no_mangle]
+pub extern "C" fn visit_expression_literal_uint8(
+    state: &mut KernelExpressionVisitorState,
+    value: u8,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    // SAFETY: The allocate_error function pointer is provided by the engine and assumed valid.
+    unsafe {
+        visit_expression_literal_unsigned_impl(state, value).into_extern_result(&allocate_error)
+    }
+}
+
+/// EXPERIMENTAL. Visit a 16-bit unsigned `uint16` literal and return its expression id.
+///
+/// Returns an error if kernel was not built with the `unsigned-integers` feature.
+#[no_mangle]
+pub extern "C" fn visit_expression_literal_uint16(
+    state: &mut KernelExpressionVisitorState,
+    value: u16,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    // SAFETY: The allocate_error function pointer is provided by the engine and assumed valid.
+    unsafe {
+        visit_expression_literal_unsigned_impl(state, value).into_extern_result(&allocate_error)
+    }
+}
+
+/// EXPERIMENTAL. Visit a 32-bit unsigned `uint32` literal and return its expression id.
+///
+/// Returns an error if kernel was not built with the `unsigned-integers` feature.
+#[no_mangle]
+pub extern "C" fn visit_expression_literal_uint32(
+    state: &mut KernelExpressionVisitorState,
+    value: u32,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    // SAFETY: The allocate_error function pointer is provided by the engine and assumed valid.
+    unsafe {
+        visit_expression_literal_unsigned_impl(state, value).into_extern_result(&allocate_error)
+    }
+}
+
+/// EXPERIMENTAL. Visit a 64-bit unsigned `uint64` literal and return its expression id.
+///
+/// Returns an error if kernel was not built with the `unsigned-integers` feature.
+#[no_mangle]
+pub extern "C" fn visit_expression_literal_uint64(
+    state: &mut KernelExpressionVisitorState,
+    value: u64,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    // SAFETY: The allocate_error function pointer is provided by the engine and assumed valid.
+    unsafe {
+        visit_expression_literal_unsigned_impl(state, value).into_extern_result(&allocate_error)
+    }
+}
+
+#[cfg(feature = "unsigned-integers")]
+fn visit_expression_literal_unsigned_impl(
+    state: &mut KernelExpressionVisitorState,
+    value: impl Into<Scalar>,
+) -> KernelResult<usize> {
+    Ok(wrap_expression(state, lit(value)))
+}
+
+#[cfg(not(feature = "unsigned-integers"))]
+fn visit_expression_literal_unsigned_impl<T>(
+    _state: &mut KernelExpressionVisitorState,
+    _value: T,
+) -> KernelResult<usize> {
+    Err(delta_kernel::KernelError::unsupported(
+        "`unsigned-integers` feature not enabled in delta-kernel",
+    ))
+}
+
+/// Visit a float16 literal expression. `value` holds the raw IEEE 754 binary16 bits.
+///
+/// Returns an error if kernel was not built with the `float16` feature.
+#[no_mangle]
+pub extern "C" fn visit_expression_literal_float16(
+    state: &mut KernelExpressionVisitorState,
+    value: u16,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    // SAFETY: The allocate_error function pointer is provided by the engine and assumed valid.
+    unsafe {
+        visit_expression_literal_float16_impl(state, value).into_extern_result(&allocate_error)
+    }
+}
+
+#[cfg(feature = "float16")]
+fn visit_expression_literal_float16_impl(
+    state: &mut KernelExpressionVisitorState,
+    value: u16,
+) -> KernelResult<usize> {
+    Ok(wrap_expression(state, lit(f16::from_bits(value))))
+}
+
+#[cfg(not(feature = "float16"))]
+fn visit_expression_literal_float16_impl(
+    _state: &mut KernelExpressionVisitorState,
+    _value: u16,
+) -> KernelResult<usize> {
+    Err(delta_kernel::KernelError::unsupported(
+        "`float16` feature not enabled in delta-kernel",
+    ))
+}
+
 #[no_mangle]
 pub extern "C" fn visit_expression_literal_float(
     state: &mut KernelExpressionVisitorState,
@@ -377,25 +490,113 @@ pub extern "C" fn visit_expression_literal_timestamp(
     wrap_expression(state, lit(Scalar::Timestamp(value)))
 }
 
-#[cfg(feature = "nanosecond-timestamps")]
-/// visit a timestamp literal expression 'value' (i64 representing nanoseconds since unix epoch)
+/// Visit a timestamp literal expression 'value' (i64 representing nanoseconds since unix epoch)
+///
+/// Returns an error if kernel was not built with the `nanosecond-timestamps` feature.
 #[no_mangle]
 pub extern "C" fn visit_expression_literal_timestamp_nanos(
     state: &mut KernelExpressionVisitorState,
     value: i64,
-) -> usize {
-    wrap_expression(state, Expression::literal(Scalar::TimestampNanos(value)))
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    // SAFETY: The allocate_error function pointer is provided by the engine and assumed valid.
+    unsafe {
+        visit_expression_literal_timestamp_nanos_impl(state, value)
+            .into_extern_result(&allocate_error)
+    }
 }
 
 #[cfg(feature = "nanosecond-timestamps")]
-/// visit a timestamp literal expression 'value' (i64 representing nanoseconds since
+fn visit_expression_literal_timestamp_nanos_impl(
+    state: &mut KernelExpressionVisitorState,
+    value: i64,
+) -> KernelResult<usize> {
+    Ok(wrap_expression(
+        state,
+        Expression::literal(Scalar::TimestampNanos(value)),
+    ))
+}
+
+#[cfg(not(feature = "nanosecond-timestamps"))]
+fn visit_expression_literal_timestamp_nanos_impl(
+    _state: &mut KernelExpressionVisitorState,
+    _value: i64,
+) -> KernelResult<usize> {
+    Err(delta_kernel::KernelError::unsupported(
+        "`nanosecond-timestamps` feature not enabled in delta-kernel",
+    ))
+}
+
+/// Visit a timestamp literal expression 'value' (i64 representing nanoseconds since
 /// unix epoch, with no timezone)
+///
+/// Returns an error if kernel was not built with the `nanosecond-timestamps` feature.
 #[no_mangle]
 pub extern "C" fn visit_expression_literal_timestamp_nanos_ntz(
     state: &mut KernelExpressionVisitorState,
     value: i64,
-) -> usize {
-    wrap_expression(state, Expression::literal(Scalar::TimestampNanosNtz(value)))
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    // SAFETY: The allocate_error function pointer is provided by the engine and assumed valid.
+    unsafe {
+        visit_expression_literal_timestamp_nanos_ntz_impl(state, value)
+            .into_extern_result(&allocate_error)
+    }
+}
+
+#[cfg(feature = "nanosecond-timestamps")]
+fn visit_expression_literal_timestamp_nanos_ntz_impl(
+    state: &mut KernelExpressionVisitorState,
+    value: i64,
+) -> KernelResult<usize> {
+    Ok(wrap_expression(
+        state,
+        Expression::literal(Scalar::TimestampNanosNtz(value)),
+    ))
+}
+
+#[cfg(not(feature = "nanosecond-timestamps"))]
+fn visit_expression_literal_timestamp_nanos_ntz_impl(
+    _state: &mut KernelExpressionVisitorState,
+    _value: i64,
+) -> KernelResult<usize> {
+    Err(delta_kernel::KernelError::unsupported(
+        "`nanosecond-timestamps` feature not enabled in delta-kernel",
+    ))
+}
+
+/// EXPERIMENTAL. Visit a time of day literal expression 'value' (i64 representing nanoseconds
+/// since midnight, with no timezone).
+///
+/// Returns an error if kernel was not built with the `nanosecond-time` feature.
+#[no_mangle]
+pub extern "C" fn visit_expression_literal_time_nanos(
+    state: &mut KernelExpressionVisitorState,
+    value: i64,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    // SAFETY: The allocate_error function pointer is provided by the engine and assumed valid.
+    unsafe {
+        visit_expression_literal_time_nanos_impl(state, value).into_extern_result(&allocate_error)
+    }
+}
+
+#[cfg(feature = "nanosecond-time")]
+fn visit_expression_literal_time_nanos_impl(
+    state: &mut KernelExpressionVisitorState,
+    value: i64,
+) -> KernelResult<usize> {
+    Ok(wrap_expression(state, lit(Scalar::TimeNanos(value))))
+}
+
+#[cfg(not(feature = "nanosecond-time"))]
+fn visit_expression_literal_time_nanos_impl(
+    _state: &mut KernelExpressionVisitorState,
+    _value: i64,
+) -> KernelResult<usize> {
+    Err(delta_kernel::KernelError::unsupported(
+        "`nanosecond-time` feature not enabled in delta-kernel",
+    ))
 }
 
 /// visit a timestamp_ntz literal expression 'value' (i64 representing microseconds since unix
@@ -474,7 +675,7 @@ fn visit_expression_literal_decimal_impl(
 
 /// Type tag for null literal construction via FFI. Identifies the data type of a typed null.
 ///
-/// Most primitive types use fixed discriminants 0-14. Decimal uses 12 and requires additional
+/// Primitive types use fixed discriminants. Decimal uses 12 and requires additional
 /// precision/scale parameters. Non-primitive types (struct, array, map, variant) and the `void`
 /// primitive use the [`NonPrimitive`](Self::NonPrimitive) sentinel because they cannot be
 /// reconstructed from a type tag alone.
@@ -517,12 +718,25 @@ pub(crate) enum NullTypeTag {
     IntervalYearMonth = 13,
     /// Null of type `interval day to second` (signed microsecond duration).
     IntervalDayTime = 14,
-    // Deliberately not feature gated, so timestamp_nanos tag numbers are reserved even
-    // when the feature is disabled.
+    // Not feature gated, so the discriminants of experimental types stay reserved and the C enum
+    // is identical whichever features are enabled. Building a null from a tag whose feature is
+    // disabled returns an error.
     /// EXPERIMENTAL. Null of type `timestamp_nanos` (nanoseconds since epoch, UTC-adjusted).
     TimestampNanos = 15,
     /// EXPERIMENTAL. Null of type `timestamp_nanos_ntz` (nanoseconds since epoch, no timezone).
     TimestampNanosNtz = 16,
+    /// EXPERIMENTAL. Null of type `float16` (16-bit IEEE 754).
+    Float16 = 17,
+    /// EXPERIMENTAL. Null of type `uint8` (8-bit unsigned integer).
+    Uint8 = 18,
+    /// EXPERIMENTAL. Null of type `uint16` (16-bit unsigned integer).
+    Uint16 = 19,
+    /// EXPERIMENTAL. Null of type `uint32` (32-bit unsigned integer).
+    Uint32 = 20,
+    /// EXPERIMENTAL. Null of type `uint64` (64-bit unsigned integer).
+    Uint64 = 21,
+    /// EXPERIMENTAL. Null of type `time(9)` (nanoseconds since midnight, no timezone).
+    TimeNanos = 22,
     /// Sentinel for non-primitive null types (struct, array, map, variant) and void. Emitted by
     /// the kernel-to-engine visitor when the null's type cannot be reconstructed from a compact
     /// tag. Engines that receive this tag should use opaque expressions or a schema visitor to
@@ -555,6 +769,12 @@ impl TryFrom<u8> for NullTypeTag {
             14 => Ok(Self::IntervalDayTime),
             15 => Ok(Self::TimestampNanos),
             16 => Ok(Self::TimestampNanosNtz),
+            17 => Ok(Self::Float16),
+            18 => Ok(Self::Uint8),
+            19 => Ok(Self::Uint16),
+            20 => Ok(Self::Uint32),
+            21 => Ok(Self::Uint64),
+            22 => Ok(Self::TimeNanos),
             255 => Ok(Self::NonPrimitive),
             other => Err(delta_kernel::KernelError::generic(format!(
                 "Unrecognized null type tag: {other}"
@@ -576,6 +796,8 @@ impl NullTypeTag {
                 PrimitiveType::Short => (Self::Short, 0, 0),
                 PrimitiveType::Integer => (Self::Integer, 0, 0),
                 PrimitiveType::Long => (Self::Long, 0, 0),
+                #[cfg(feature = "float16")]
+                PrimitiveType::Float16 => (Self::Float16, 0, 0),
                 PrimitiveType::Float => (Self::Float, 0, 0),
                 PrimitiveType::Double => (Self::Double, 0, 0),
                 PrimitiveType::String => (Self::String, 0, 0),
@@ -585,10 +807,20 @@ impl NullTypeTag {
                 PrimitiveType::TimestampNanos => (Self::TimestampNanos, 0, 0),
                 #[cfg(feature = "nanosecond-timestamps")]
                 PrimitiveType::TimestampNanosNtz => (Self::TimestampNanosNtz, 0, 0),
+                #[cfg(feature = "nanosecond-time")]
+                PrimitiveType::TimeNanos => (Self::TimeNanos, 0, 0),
                 PrimitiveType::Timestamp => (Self::Timestamp, 0, 0),
                 PrimitiveType::TimestampNtz => (Self::TimestampNtz, 0, 0),
                 PrimitiveType::IntervalYearMonth => (Self::IntervalYearMonth, 0, 0),
                 PrimitiveType::IntervalDayTime => (Self::IntervalDayTime, 0, 0),
+                #[cfg(feature = "unsigned-integers")]
+                PrimitiveType::Uint8 => (Self::Uint8, 0, 0),
+                #[cfg(feature = "unsigned-integers")]
+                PrimitiveType::Uint16 => (Self::Uint16, 0, 0),
+                #[cfg(feature = "unsigned-integers")]
+                PrimitiveType::Uint32 => (Self::Uint32, 0, 0),
+                #[cfg(feature = "unsigned-integers")]
+                PrimitiveType::Uint64 => (Self::Uint64, 0, 0),
                 PrimitiveType::Decimal(dt) => (Self::Decimal, dt.precision(), dt.scale()),
                 // Void has no dedicated FFI tag. The current predicate-construction path is
                 // not expected to produce a void-typed literal null; if one ever reaches this
@@ -623,23 +855,49 @@ impl NullTypeTag {
             Self::Short => Ok(DataType::SHORT),
             Self::Integer => Ok(DataType::INTEGER),
             Self::Long => Ok(DataType::LONG),
+            #[cfg(feature = "float16")]
+            Self::Float16 => Ok(DataType::FLOAT16),
+            #[cfg(not(feature = "float16"))]
+            Self::Float16 => Err(delta_kernel::KernelError::unsupported(
+                "`float16` feature not enabled in delta-kernel",
+            )),
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint8 => Ok(DataType::UINT8),
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint16 => Ok(DataType::UINT16),
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint32 => Ok(DataType::UINT32),
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint64 => Ok(DataType::UINT64),
+            #[cfg(not(feature = "unsigned-integers"))]
+            Self::Uint8 | Self::Uint16 | Self::Uint32 | Self::Uint64 => {
+                Err(delta_kernel::KernelError::unsupported(
+                    "`unsigned-integers` feature not enabled in delta-kernel",
+                ))
+            }
             Self::Float => Ok(DataType::FLOAT),
             Self::Double => Ok(DataType::DOUBLE),
             Self::String => Ok(DataType::STRING),
             Self::Binary => Ok(DataType::BINARY),
             Self::Date => Ok(DataType::DATE),
             #[cfg(not(feature = "nanosecond-timestamps"))]
-            Self::TimestampNanos => Err(delta_kernel::KernelError::generic(
-                "`nanosecond-timestamps` Cargo feature not enabled",
+            Self::TimestampNanos => Err(delta_kernel::KernelError::unsupported(
+                "`nanosecond-timestamps` feature not enabled in delta-kernel",
             )),
             #[cfg(feature = "nanosecond-timestamps")]
             Self::TimestampNanos => Ok(DataType::TIMESTAMP_NANOS),
             #[cfg(not(feature = "nanosecond-timestamps"))]
-            Self::TimestampNanosNtz => Err(delta_kernel::KernelError::generic(
-                "`nanosecond-timestamps` Cargo feature not enabled",
+            Self::TimestampNanosNtz => Err(delta_kernel::KernelError::unsupported(
+                "`nanosecond-timestamps` feature not enabled in delta-kernel",
             )),
             #[cfg(feature = "nanosecond-timestamps")]
             Self::TimestampNanosNtz => Ok(DataType::TIMESTAMP_NANOS_NTZ),
+            #[cfg(not(feature = "nanosecond-time"))]
+            Self::TimeNanos => Err(delta_kernel::KernelError::unsupported(
+                "`nanosecond-time` feature not enabled in delta-kernel",
+            )),
+            #[cfg(feature = "nanosecond-time")]
+            Self::TimeNanos => Ok(DataType::TIME_NANOS),
             Self::Timestamp => Ok(DataType::TIMESTAMP),
             Self::TimestampNtz => Ok(DataType::TIMESTAMP_NTZ),
             Self::IntervalYearMonth => Ok(DataType::INTERVAL_YEAR_MONTH),
@@ -928,6 +1186,8 @@ mod tests {
 
     use super::*;
     use crate::expressions::FfiMapToStructOptions;
+    #[cfg(not(feature = "nanosecond-timestamps"))]
+    use crate::ffi_test_utils::assert_extern_result_error_contains;
 
     #[rstest]
     #[case::default(None)]
@@ -1059,8 +1319,109 @@ mod tests {
     #[case(NullTypeTag::TimestampNtz, DataType::TIMESTAMP_NTZ)]
     #[case(NullTypeTag::IntervalYearMonth, DataType::INTERVAL_YEAR_MONTH)]
     #[case(NullTypeTag::IntervalDayTime, DataType::INTERVAL_DAY_TIME)]
+    #[cfg_attr(
+        feature = "nanosecond-timestamps",
+        case(NullTypeTag::TimestampNanos, DataType::TIMESTAMP_NANOS)
+    )]
+    #[cfg_attr(
+        feature = "nanosecond-timestamps",
+        case(NullTypeTag::TimestampNanosNtz, DataType::TIMESTAMP_NANOS_NTZ)
+    )]
     fn to_data_type_primitive(#[case] tag: NullTypeTag, #[case] expected: DataType) {
         assert_eq!(tag.to_data_type(0, 0).unwrap(), expected);
+    }
+
+    #[cfg(not(all(
+        feature = "float16",
+        feature = "unsigned-integers",
+        feature = "nanosecond-timestamps",
+        feature = "nanosecond-time"
+    )))]
+    #[rstest]
+    #[cfg_attr(not(feature = "float16"), case(NullTypeTag::Float16, "float16"))]
+    #[cfg_attr(
+        not(feature = "unsigned-integers"),
+        case(NullTypeTag::Uint8, "unsigned-integers")
+    )]
+    #[cfg_attr(
+        not(feature = "unsigned-integers"),
+        case(NullTypeTag::Uint16, "unsigned-integers")
+    )]
+    #[cfg_attr(
+        not(feature = "unsigned-integers"),
+        case(NullTypeTag::Uint32, "unsigned-integers")
+    )]
+    #[cfg_attr(
+        not(feature = "unsigned-integers"),
+        case(NullTypeTag::Uint64, "unsigned-integers")
+    )]
+    #[cfg_attr(
+        not(feature = "nanosecond-timestamps"),
+        case(NullTypeTag::TimestampNanos, "nanosecond-timestamps")
+    )]
+    #[cfg_attr(
+        not(feature = "nanosecond-timestamps"),
+        case(NullTypeTag::TimestampNanosNtz, "nanosecond-timestamps")
+    )]
+    #[cfg_attr(
+        not(feature = "nanosecond-time"),
+        case(NullTypeTag::TimeNanos, "nanosecond-time")
+    )]
+    fn to_data_type_feature_gated_tag_is_unsupported_without_feature(
+        #[case] tag: NullTypeTag,
+        #[case] feature: &str,
+    ) {
+        let error = tag.to_data_type(0, 0).unwrap_err();
+        assert!(
+            matches!(
+                error.without_backtrace(),
+                delta_kernel::KernelError::Unsupported(_)
+            ),
+            "{error}"
+        );
+        assert!(
+            error
+                .to_string()
+                .contains(&format!("`{feature}` feature not enabled")),
+            "{error}"
+        );
+    }
+
+    type VisitTimestampNanosFn = extern "C" fn(
+        &mut KernelExpressionVisitorState,
+        i64,
+        AllocateErrorFn,
+    ) -> ExternResult<usize>;
+
+    #[cfg(feature = "nanosecond-timestamps")]
+    #[rstest]
+    #[case(visit_expression_literal_timestamp_nanos, Scalar::TimestampNanos(-123))]
+    #[case(visit_expression_literal_timestamp_nanos_ntz, Scalar::TimestampNanosNtz(-123))]
+    fn timestamp_nanos_literal_visitors_build_nanos_scalars(
+        #[case] visit: VisitTimestampNanosFn,
+        #[case] expected: Scalar,
+    ) {
+        let mut state = KernelExpressionVisitorState::default();
+        let id = ok_or_panic(visit(&mut state, -123, allocate_err));
+        let expr = unwrap_kernel_expression(&mut state, id).unwrap();
+        assert_eq!(expr, lit(expected));
+    }
+
+    #[cfg(not(feature = "nanosecond-timestamps"))]
+    #[rstest]
+    fn timestamp_nanos_literal_visitors_require_feature(
+        #[values(
+            visit_expression_literal_timestamp_nanos,
+            visit_expression_literal_timestamp_nanos_ntz
+        )]
+        visit: VisitTimestampNanosFn,
+    ) {
+        let mut state = KernelExpressionVisitorState::default();
+        assert_extern_result_error_contains(
+            visit(&mut state, -123, allocate_err),
+            FFIKernelError::UnsupportedError,
+            "nanosecond-timestamps",
+        );
     }
 
     #[test]
@@ -1109,13 +1470,19 @@ mod tests {
     #[case(14, NullTypeTag::IntervalDayTime)]
     #[case(15, NullTypeTag::TimestampNanos)]
     #[case(16, NullTypeTag::TimestampNanosNtz)]
+    #[case(17, NullTypeTag::Float16)]
+    #[case(18, NullTypeTag::Uint8)]
+    #[case(19, NullTypeTag::Uint16)]
+    #[case(20, NullTypeTag::Uint32)]
+    #[case(21, NullTypeTag::Uint64)]
+    #[case(22, NullTypeTag::TimeNanos)]
     #[case(255, NullTypeTag::NonPrimitive)]
     fn try_from_u8_valid(#[case] value: u8, #[case] expected: NullTypeTag) {
         assert_eq!(NullTypeTag::try_from(value).unwrap(), expected);
     }
 
     #[rstest]
-    #[case(17)]
+    #[case(23)]
     #[case(42)]
     #[case(254)]
     fn try_from_u8_invalid(#[case] value: u8) {
@@ -1141,7 +1508,7 @@ mod tests {
     #[test]
     fn visit_null_unrecognized_tag_returns_error() {
         let mut state = KernelExpressionVisitorState::default();
-        assert!(visit_expression_literal_null_impl(&mut state, 17, 0, 0).is_err());
+        assert!(visit_expression_literal_null_impl(&mut state, 23, 0, 0).is_err());
     }
 
     #[test]
@@ -1169,6 +1536,13 @@ mod tests {
     #[case(DataType::TIMESTAMP_NTZ)]
     #[case(DataType::INTERVAL_YEAR_MONTH)]
     #[case(DataType::INTERVAL_DAY_TIME)]
+    #[cfg_attr(feature = "nanosecond-timestamps", case(DataType::TIMESTAMP_NANOS))]
+    #[cfg_attr(feature = "float16", case(DataType::FLOAT16))]
+    #[cfg_attr(feature = "unsigned-integers", case(DataType::UINT8))]
+    #[cfg_attr(feature = "unsigned-integers", case(DataType::UINT16))]
+    #[cfg_attr(feature = "unsigned-integers", case(DataType::UINT32))]
+    #[cfg_attr(feature = "unsigned-integers", case(DataType::UINT64))]
+    #[cfg_attr(feature = "nanosecond-time", case(DataType::TIME_NANOS))]
     fn null_type_round_trips_through_tag_encoding(#[case] data_type: DataType) {
         let (tag, precision, scale) = NullTypeTag::from_data_type(&data_type);
         let mut state = KernelExpressionVisitorState::default();

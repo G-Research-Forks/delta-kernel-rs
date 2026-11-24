@@ -1205,6 +1205,54 @@ fn test_build_actions_meta_predicate_partition_only(
     );
 }
 
+// Checkpoint footer min/max exclude NaN, so a floating-point partition column must not be pruned
+// on them: a row group holding partition values 1.0 and NaN would otherwise be skipped for
+// `part != 1`.
+#[rstest]
+#[case::integer(DataType::INTEGER, Scalar::Integer(1), true)]
+#[case::float(DataType::FLOAT, Scalar::Float(1.0), false)]
+#[case::double(DataType::DOUBLE, Scalar::Double(1.0), false)]
+#[cfg_attr(
+    feature = "float16",
+    case::float16(DataType::FLOAT16, Scalar::Float16(half::f16::ONE), false)
+)]
+fn test_build_actions_meta_predicate_floating_partition_skips_footer_bounds(
+    #[case] partition_type: DataType,
+    #[case] value: Scalar,
+    #[case] expect_partition_reference: bool,
+) {
+    let engine = SyncEngine::new_with_store(Arc::new(InMemory::new()));
+    let schema = Arc::new(
+        StructType::try_new([
+            StructField::nullable("id", DataType::INTEGER),
+            StructField::nullable("part", partition_type),
+        ])
+        .unwrap(),
+    );
+    let _ = create_table("memory:///table/", schema, "test", true)
+        .with_data_layout(DataLayout::partitioned(["part"]))
+        .build(&engine, Box::new(FileSystemCommitter::new()))
+        .unwrap()
+        .commit(&engine)
+        .unwrap();
+    let snapshot = Snapshot::builder_for("memory:///table/")
+        .build(&engine)
+        .unwrap();
+
+    let scan = snapshot
+        .scan_builder()
+        .with_predicate(Arc::new(Pred::ne(col!("part"), value)))
+        .build()
+        .unwrap();
+
+    let references_partition = scan.build_actions_meta_predicate().is_some_and(|pred| {
+        pred.references()
+            .into_iter()
+            .any(|c| c.to_string() == "add.partitionValues_parsed.part")
+    });
+    assert_eq!(references_partition, expect_partition_reference);
+}
+
 // Under column mapping, `partitionValues_parsed` is keyed by the physical partition name, so the
 // checkpoint meta-predicate must reference that physical name (not the logical one) in both name
 // and id mapping modes.

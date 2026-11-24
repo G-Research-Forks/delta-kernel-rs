@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use derive_more::Constructor;
+#[cfg(feature = "float16")]
+use half::f16;
 use tracing::debug;
 
 use crate::actions::visitors::SelectionVectorVisitor;
@@ -272,6 +274,15 @@ pub trait GetData<'a> {
         (get_map, MapItem<'a>),
         (get_struct_list, StructList<'a>)
     );
+    #[cfg(feature = "float16")]
+    impl_default_get!((get_float16, f16));
+    #[cfg(feature = "unsigned-integers")]
+    impl_default_get!(
+        (get_uint8, u8),
+        (get_uint16, u16),
+        (get_uint32, u32),
+        (get_uint64, u64)
+    );
 }
 
 macro_rules! impl_null_get {
@@ -301,6 +312,15 @@ impl<'a> GetData<'a> for () {
         (get_list, ListItem<'a>),
         (get_map, MapItem<'a>),
         (get_struct_list, StructList<'a>)
+    );
+    #[cfg(feature = "float16")]
+    impl_null_get!((get_float16, f16));
+    #[cfg(feature = "unsigned-integers")]
+    impl_null_get!(
+        (get_uint8, u8),
+        (get_uint16, u16),
+        (get_uint32, u32),
+        (get_uint64, u64)
     );
 }
 
@@ -345,6 +365,17 @@ impl_typed_get_data!(
     (get_binary, &'a [u8]),
     (get_list, ListItem<'a>),
     (get_map, MapItem<'a>)
+);
+
+#[cfg(feature = "float16")]
+impl_typed_get_data!((get_float16, f16));
+
+#[cfg(feature = "unsigned-integers")]
+impl_typed_get_data!(
+    (get_uint8, u8),
+    (get_uint16, u16),
+    (get_uint32, u32),
+    (get_uint64, u64)
 );
 
 impl<'a> TypedGetData<'a, String> for dyn GetData<'a> + '_ {

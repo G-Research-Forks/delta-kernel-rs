@@ -4,8 +4,12 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
+#[cfg(feature = "nanosecond-time")]
+use chrono::{NaiveTime, Timelike};
 use delta_kernel_derive::internal_api;
 use derive_more::From;
+#[cfg(feature = "float16")]
+use half::f16;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;
@@ -334,6 +338,26 @@ pub enum Scalar {
     /// 8bit integer
     #[from]
     Byte(i8),
+    /// 16bit floating point
+    #[cfg(feature = "float16")]
+    #[from]
+    Float16(f16),
+    /// 8bit unsigned integer
+    #[cfg(feature = "unsigned-integers")]
+    #[from]
+    Uint8(u8),
+    /// 16bit unsigned integer
+    #[cfg(feature = "unsigned-integers")]
+    #[from]
+    Uint16(u16),
+    /// 32bit unsigned integer
+    #[cfg(feature = "unsigned-integers")]
+    #[from]
+    Uint32(u32),
+    /// 64bit unsigned integer
+    #[cfg(feature = "unsigned-integers")]
+    #[from]
+    Uint64(u64),
     /// 32bit floating point
     #[from]
     Float(f32),
@@ -360,6 +384,9 @@ pub enum Scalar {
     #[cfg(feature = "nanosecond-timestamps")]
     /// Nanosecond precision timestamp, with no timezone.
     TimestampNanosNtz(i64),
+    #[cfg(feature = "nanosecond-time")]
+    /// Time of day with no timezone, as nanoseconds since midnight.
+    TimeNanos(i64),
     /// Date stored as a signed 32bit int days since UNIX epoch 1970-01-01
     Date(i32),
     /// Binary data
@@ -388,6 +415,16 @@ impl Scalar {
             Self::Long(_) => DataType::LONG,
             Self::Short(_) => DataType::SHORT,
             Self::Byte(_) => DataType::BYTE,
+            #[cfg(feature = "float16")]
+            Self::Float16(_) => DataType::FLOAT16,
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint8(_) => DataType::UINT8,
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint16(_) => DataType::UINT16,
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint32(_) => DataType::UINT32,
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint64(_) => DataType::UINT64,
             Self::Float(_) => DataType::FLOAT,
             Self::Double(_) => DataType::DOUBLE,
             Self::String(_) => DataType::STRING,
@@ -400,6 +437,8 @@ impl Scalar {
             Self::TimestampNanos(_) => DataType::TIMESTAMP_NANOS,
             #[cfg(feature = "nanosecond-timestamps")]
             Self::TimestampNanosNtz(_) => DataType::TIMESTAMP_NANOS_NTZ,
+            #[cfg(feature = "nanosecond-time")]
+            Self::TimeNanos(_) => DataType::TIME_NANOS,
             Self::Date(_) => DataType::DATE,
             Self::Binary(_) => DataType::BINARY,
             Self::Decimal(d) => DataType::from(*d.ty()),
@@ -457,6 +496,14 @@ impl Scalar {
             (Long(a), Long(b)) => Long(a.checked_add(*b)?),
             (Short(a), Short(b)) => Short(a.checked_add(*b)?),
             (Byte(a), Byte(b)) => Byte(a.checked_add(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint8(a), Uint8(b)) => Uint8(a.checked_add(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint16(a), Uint16(b)) => Uint16(a.checked_add(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint32(a), Uint32(b)) => Uint32(a.checked_add(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint64(a), Uint64(b)) => Uint64(a.checked_add(*b)?),
             _ => return None,
         };
         Some(result)
@@ -470,6 +517,14 @@ impl Scalar {
             (Long(a), Long(b)) => Long(a.checked_sub(*b)?),
             (Short(a), Short(b)) => Short(a.checked_sub(*b)?),
             (Byte(a), Byte(b)) => Byte(a.checked_sub(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint8(a), Uint8(b)) => Uint8(a.checked_sub(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint16(a), Uint16(b)) => Uint16(a.checked_sub(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint32(a), Uint32(b)) => Uint32(a.checked_sub(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint64(a), Uint64(b)) => Uint64(a.checked_sub(*b)?),
             _ => return None,
         };
         Some(result)
@@ -483,6 +538,14 @@ impl Scalar {
             (Long(a), Long(b)) => Long(a.checked_mul(*b)?),
             (Short(a), Short(b)) => Short(a.checked_mul(*b)?),
             (Byte(a), Byte(b)) => Byte(a.checked_mul(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint8(a), Uint8(b)) => Uint8(a.checked_mul(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint16(a), Uint16(b)) => Uint16(a.checked_mul(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint32(a), Uint32(b)) => Uint32(a.checked_mul(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint64(a), Uint64(b)) => Uint64(a.checked_mul(*b)?),
             _ => return None,
         };
         Some(result)
@@ -498,6 +561,14 @@ impl Scalar {
             (Long(a), Long(b)) => Long(a.checked_div(*b)?),
             (Short(a), Short(b)) => Short(a.checked_div(*b)?),
             (Byte(a), Byte(b)) => Byte(a.checked_div(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint8(a), Uint8(b)) => Uint8(a.checked_div(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint16(a), Uint16(b)) => Uint16(a.checked_div(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint32(a), Uint32(b)) => Uint32(a.checked_div(*b)?),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint64(a), Uint64(b)) => Uint64(a.checked_div(*b)?),
             _ => return None,
         };
         Some(result)
@@ -511,6 +582,16 @@ impl Display for Scalar {
             Self::Long(i) => write!(f, "{i}"),
             Self::Short(i) => write!(f, "{i}"),
             Self::Byte(i) => write!(f, "{i}"),
+            #[cfg(feature = "float16")]
+            Self::Float16(fl) => write!(f, "{fl}"),
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint8(u) => write!(f, "{u}"),
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint16(u) => write!(f, "{u}"),
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint32(u) => write!(f, "{u}"),
+            #[cfg(feature = "unsigned-integers")]
+            Self::Uint64(u) => write!(f, "{u}"),
             Self::Float(fl) => write!(f, "{fl}"),
             Self::Double(fl) => write!(f, "{fl}"),
             Self::String(s) => write!(f, "'{s}'"),
@@ -523,6 +604,8 @@ impl Display for Scalar {
             Self::TimestampNanos(ts) => write!(f, "{ts}"),
             #[cfg(feature = "nanosecond-timestamps")]
             Self::TimestampNanosNtz(ts) => write!(f, "{ts}"),
+            #[cfg(feature = "nanosecond-time")]
+            Self::TimeNanos(nanos) => write!(f, "{nanos}"),
             Self::Date(d) => write!(f, "{d}"),
             Self::Binary(b) => write!(f, "{b:?}"),
             Self::Decimal(d) => match d.scale().cmp(&0) {
@@ -628,6 +711,26 @@ impl Scalar {
             (Short(_), _) => None,
             (Byte(a), Byte(b)) => a.partial_cmp(b),
             (Byte(_), _) => None,
+            #[cfg(feature = "float16")]
+            (Float16(a), Float16(b)) => a.partial_cmp(b),
+            #[cfg(feature = "float16")]
+            (Float16(_), _) => None,
+            #[cfg(feature = "unsigned-integers")]
+            (Uint8(a), Uint8(b)) => a.partial_cmp(b),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint8(_), _) => None,
+            #[cfg(feature = "unsigned-integers")]
+            (Uint16(a), Uint16(b)) => a.partial_cmp(b),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint16(_), _) => None,
+            #[cfg(feature = "unsigned-integers")]
+            (Uint32(a), Uint32(b)) => a.partial_cmp(b),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint32(_), _) => None,
+            #[cfg(feature = "unsigned-integers")]
+            (Uint64(a), Uint64(b)) => a.partial_cmp(b),
+            #[cfg(feature = "unsigned-integers")]
+            (Uint64(_), _) => None,
             (Float(a), Float(b)) => a.partial_cmp(b),
             (Float(_), _) => None,
             (Double(a), Double(b)) => a.partial_cmp(b),
@@ -652,6 +755,10 @@ impl Scalar {
             (TimestampNanosNtz(a), TimestampNanosNtz(b)) => a.partial_cmp(b),
             #[cfg(feature = "nanosecond-timestamps")]
             (TimestampNanosNtz(_), _) => None,
+            #[cfg(feature = "nanosecond-time")]
+            (TimeNanos(a), TimeNanos(b)) => a.partial_cmp(b),
+            #[cfg(feature = "nanosecond-time")]
+            (TimeNanos(_), _) => None,
             (Date(a), Date(b)) => a.partial_cmp(b),
             (Date(_), _) => None,
             (Binary(a), Binary(b)) => a.partial_cmp(b),
@@ -909,8 +1016,18 @@ impl PrimitiveType {
             Short => self.parse_str_as_scalar(raw, Scalar::Short),
             Integer => self.parse_str_as_scalar(raw, Scalar::Integer),
             Long => self.parse_str_as_scalar(raw, Scalar::Long),
+            #[cfg(feature = "float16")]
+            Float16 => self.parse_str_as_scalar(raw, Scalar::Float16),
             Float => self.parse_str_as_scalar(raw, Scalar::Float),
             Double => self.parse_str_as_scalar(raw, Scalar::Double),
+            #[cfg(feature = "unsigned-integers")]
+            Uint8 => self.parse_str_as_scalar(raw, Scalar::Uint8),
+            #[cfg(feature = "unsigned-integers")]
+            Uint16 => self.parse_str_as_scalar(raw, Scalar::Uint16),
+            #[cfg(feature = "unsigned-integers")]
+            Uint32 => self.parse_str_as_scalar(raw, Scalar::Uint32),
+            #[cfg(feature = "unsigned-integers")]
+            Uint64 => self.parse_str_as_scalar(raw, Scalar::Uint64),
             Void => Err(self.parse_error(raw)),
             Boolean => {
                 if raw.eq_ignore_ascii_case("true") {
@@ -978,6 +1095,19 @@ impl PrimitiveType {
             Geometry(_) | Geography(_) => Err(KernelError::Unsupported(format!(
                 "parse_scalar is not supported for {self:?}"
             ))),
+            #[cfg(feature = "nanosecond-time")]
+            TimeNanos => {
+                let time = NaiveTime::parse_from_str(raw, "%H:%M:%S%.f")
+                    .map_err(|_| self.parse_error(raw))?;
+                // chrono represents leap seconds with nanosecond() >= 1e9, which has no valid
+                // nanoseconds-since-midnight representation.
+                if time.nanosecond() >= 1_000_000_000 {
+                    return Err(self.parse_error(raw));
+                }
+                let nanos = i64::from(time.num_seconds_from_midnight()) * 1_000_000_000
+                    + i64::from(time.nanosecond());
+                Ok(Scalar::TimeNanos(nanos))
+            }
         }
     }
 
@@ -1559,6 +1689,79 @@ mod tests {
         assert_eq!(scalar, Scalar::Timestamp(micros));
     }
 
+    #[cfg(feature = "unsigned-integers")]
+    #[test]
+    fn unsigned_scalar_basics_and_unsigned_ordering() {
+        assert_eq!(
+            Scalar::Uint64(18446744073709551615).data_type(),
+            DataType::UINT64
+        );
+        assert_eq!(Scalar::Uint8(255).to_string(), "255");
+        // CRITICAL: unsigned ordering -- u64::MAX must be GREATER than 0 (not signed -1 < 0)
+        assert_eq!(
+            Scalar::Uint64(18446744073709551615).logical_partial_cmp(&Scalar::Uint64(0)),
+            Some(std::cmp::Ordering::Greater)
+        );
+        let s: Scalar = 255u8.into();
+        assert_eq!(s, Scalar::Uint8(255));
+        assert_eq!(
+            PrimitiveType::Uint64
+                .parse_scalar("18446744073709551615")
+                .unwrap(),
+            Scalar::Uint64(18446744073709551615)
+        );
+    }
+
+    #[cfg(feature = "unsigned-integers")]
+    fn assert_unsigned_option_and_collection_conversions<T>(value: T, data_type: DataType)
+    where
+        T: Into<Scalar> + ToDataType + Copy + Eq + std::hash::Hash,
+    {
+        let expected: Scalar = value.into();
+        assert_eq!(expected.data_type(), data_type);
+
+        assert_eq!(Scalar::from(Some(value)), expected);
+        assert_eq!(Scalar::from(None::<T>), Scalar::Null(data_type.clone()));
+
+        let array = Scalar::from(vec![value, value]);
+        assert_eq!(
+            array.data_type(),
+            ArrayType::new(data_type.clone(), false).into()
+        );
+        let nullable_array = Scalar::from(vec![Some(value), None]);
+        assert_eq!(
+            nullable_array.data_type(),
+            ArrayType::new(data_type.clone(), true).into()
+        );
+        let Scalar::Array(array_data) = nullable_array else {
+            panic!("Expected Array scalar");
+        };
+        assert_eq!(array_data.array_elements()[0], expected);
+        assert!(array_data.array_elements()[1].is_null());
+
+        let map = Scalar::from(HashMap::from([(value, value)]));
+        assert_eq!(
+            map.data_type(),
+            MapType::new(data_type.clone(), data_type.clone(), false).into()
+        );
+        let nullable_map = Scalar::from(HashMap::from([(value, None::<T>)]));
+        assert_eq!(
+            nullable_map.data_type(),
+            MapType::new(data_type.clone(), data_type, true).into()
+        );
+    }
+
+    #[cfg(feature = "unsigned-integers")]
+    #[test]
+    fn test_unsigned_option_and_collection_conversions() {
+        // `u8` has no generic option/collection conversions because `Vec<u8>` is binary data.
+        assert_eq!(Scalar::from(u8::MAX), Scalar::Uint8(u8::MAX));
+        assert_eq!(Scalar::from(vec![1u8, 2]), Scalar::Binary(vec![1, 2]));
+        assert_unsigned_option_and_collection_conversions(u16::MAX, DataType::UINT16);
+        assert_unsigned_option_and_collection_conversions(u32::MAX, DataType::UINT32);
+        assert_unsigned_option_and_collection_conversions(u64::MAX, DataType::UINT64);
+    }
+
     #[cfg(feature = "nanosecond-timestamps")]
     #[test]
     fn test_timestamp_nanos_parse() {
@@ -1671,6 +1874,48 @@ mod tests {
         assert!(!null.logical_eq(&null));
     }
 
+    #[cfg(feature = "nanosecond-time")]
+    #[rstest::rstest]
+    #[case::midnight("00:00:00", 0)]
+    #[case::whole_second("13:06:07", 47_167_000_000_000)]
+    #[case::nanosecond("13:06:07.123456789", 47_167_123_456_789)]
+    #[case::last_nanosecond("23:59:59.999999999", 86_399_999_999_999)]
+    fn test_time_nanos_parse(#[case] raw: &str, #[case] nanos: i64) {
+        let scalar = PrimitiveType::TimeNanos.parse_scalar(raw).unwrap();
+        assert_eq!(scalar, Scalar::TimeNanos(nanos));
+    }
+
+    #[cfg(feature = "nanosecond-time")]
+    #[rstest::rstest]
+    #[case::hour_out_of_range("24:00:00")]
+    #[case::has_date("2011-01-11 13:06:07")]
+    #[case::has_offset("13:06:07Z")]
+    #[case::leap_second_end_of_day("23:59:60")]
+    #[case::leap_second_with_fraction("23:59:60.5")]
+    #[case::leap_second_mid_day("12:34:60")]
+    fn test_time_nanos_parse_fails(#[case] raw: &str) {
+        let result = PrimitiveType::TimeNanos.parse_scalar(raw);
+        assert!(
+            matches!(result, Err(KernelError::ParseError(..))),
+            "{result:?}"
+        );
+    }
+
+    #[cfg(feature = "nanosecond-time")]
+    #[test]
+    fn test_partial_eq_cmp_time_nanos() {
+        test_partial_eq(
+            Scalar::TimeNanos(1),
+            Scalar::TimeNanos(123),
+            DataType::TIME_NANOS,
+        );
+        test_partial_cmp(
+            Scalar::TimeNanos(1),
+            Scalar::TimeNanos(123),
+            DataType::TIME_NANOS,
+        );
+    }
+
     fn assert_into_scalar_matches_to_data_type<T: IntoScalar>(value: T) {
         let scalar: Scalar = value.into();
         assert!(!scalar.is_null());
@@ -1705,6 +1950,61 @@ mod tests {
             Scalar::TimestampNanosNtz(123),
             DataType::TIMESTAMP_NANOS_NTZ,
         );
+    }
+
+    #[cfg(feature = "float16")]
+    #[test]
+    fn test_float16_parse() {
+        let assert_float16_eq = |raw, expected: f16| {
+            let scalar = PrimitiveType::Float16.parse_scalar(raw).unwrap();
+            assert_eq!(scalar, Scalar::Float16(expected));
+        };
+        assert_float16_eq("1.5", f16::from_f32(1.5));
+        assert_float16_eq("-2.25", f16::from_f32(-2.25));
+        assert_float16_eq("0", f16::from_f32(0.0));
+        assert_float16_eq("inf", f16::INFINITY);
+        assert_float16_eq("-inf", f16::NEG_INFINITY);
+
+        // Empty string parses as null
+        assert_eq!(
+            PrimitiveType::Float16.parse_scalar("").unwrap(),
+            Scalar::Null(DataType::FLOAT16),
+        );
+
+        // NaN parses, but NaN != NaN, so verify via is_nan()
+        let Scalar::Float16(parsed) = PrimitiveType::Float16.parse_scalar("NaN").unwrap() else {
+            panic!("Expected Float16 scalar");
+        };
+        assert!(parsed.is_nan());
+
+        // Unparseable input fails
+        PrimitiveType::Float16
+            .parse_scalar("not a number")
+            .expect_err("should have failed");
+    }
+
+    #[cfg(feature = "float16")]
+    #[test]
+    fn test_partial_eq_cmp_float16() {
+        test_partial_eq(
+            Scalar::Float16(f16::from_f32(1.0)),
+            Scalar::Float16(f16::from_f32(2.0)),
+            DataType::FLOAT16,
+        );
+        test_partial_cmp(
+            Scalar::Float16(f16::from_f32(1.0)),
+            Scalar::Float16(f16::from_f32(2.0)),
+            DataType::FLOAT16,
+        );
+
+        let nan = Scalar::Float16(f16::NAN);
+        let one = Scalar::Float16(f16::from_f32(1.0));
+        assert_eq!(nan.logical_partial_cmp(&nan), None);
+        assert_eq!(nan.logical_partial_cmp(&one), None);
+        assert_eq!(one.logical_partial_cmp(&nan), None);
+        assert!(!nan.logical_eq(&nan));
+        assert!(!nan.logical_eq(&one));
+        assert!(!one.logical_eq(&nan));
     }
 
     #[test]

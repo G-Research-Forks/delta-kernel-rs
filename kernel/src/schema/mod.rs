@@ -1954,6 +1954,21 @@ pub enum PrimitiveType {
     Short,
     /// i8: 1-byte signed integer number. Range: -128 to 127
     Byte,
+    #[cfg(feature = "float16")]
+    /// f16: 2-byte half-precision floating-point numbers
+    Float16,
+    #[cfg(feature = "unsigned-integers")]
+    /// u8: 1-byte unsigned integer. Range: 0 to 255
+    Uint8,
+    #[cfg(feature = "unsigned-integers")]
+    /// u16: 2-byte unsigned integer. Range: 0 to 65535
+    Uint16,
+    #[cfg(feature = "unsigned-integers")]
+    /// u32: 4-byte unsigned integer. Range: 0 to 4294967295
+    Uint32,
+    #[cfg(feature = "unsigned-integers")]
+    /// u64: 8-byte unsigned integer. Range: 0 to 18446744073709551615
+    Uint64,
     /// f32: 4-byte single-precision floating-point numbers
     Float,
     /// f64: 8-byte double-precision floating-point numbers
@@ -1966,9 +1981,19 @@ pub enum PrimitiveType {
     Timestamp,
     #[serde(rename = "timestamp_ntz")]
     TimestampNtz,
+    /// Nanosecond precision timestamp, adjusted to UTC: an `i64` count of nanoseconds since the
+    /// Unix epoch.
+    ///
+    /// Requires the `nanosecond-timestamps` Cargo feature. A table with a column of this type
+    /// must support both the `timestampNanos` and `timestampNtz` table features.
     #[cfg(feature = "nanosecond-timestamps")]
     #[serde(rename = "timestamp_nanos")]
     TimestampNanos,
+    /// Nanosecond precision timestamp without a timezone: an `i64` count of nanoseconds since
+    /// 1970-01-01 00:00:00.
+    ///
+    /// Requires the `nanosecond-timestamps` Cargo feature. A table with a column of this type
+    /// must support both the `timestampNanos` and `timestampNtz` table features.
     #[cfg(feature = "nanosecond-timestamps")]
     #[serde(rename = "timestamp_nanos_ntz")]
     TimestampNanosNtz,
@@ -1984,6 +2009,10 @@ pub enum PrimitiveType {
     /// variant above, the serde rename is the multi-word `schemaString` type-name string.
     #[serde(rename = "interval day to second")]
     IntervalDayTime,
+    #[cfg(feature = "nanosecond-time")]
+    /// Time of day with no timezone, as nanoseconds since midnight
+    #[serde(rename = "time(9)")]
+    TimeNanos,
     #[from]
     #[serde(serialize_with = "serialize_decimal", untagged)]
     Decimal(DecimalType),
@@ -2018,24 +2047,28 @@ impl PrimitiveType {
     /// - Float widening: float -> double (Delta protocol type widening)
     /// - Timestamp interchangeability: Timestamp <-> TimestampNtz (both are i64 microseconds since
     ///   epoch, differing only in timezone semantics; this is a physical read accommodation, not a
-    ///   Delta protocol type widening rule)
+    ///   Delta protocol type widening rule). Similarly for TimestampNanos <-> TimestampNanosNtz.
     #[internal_api]
     pub(crate) fn can_widen_to(&self, target: &Self) -> bool {
         use PrimitiveType::*;
-        matches!(
-            (self, target),
+        match (self, target) {
             // Integer widening: smaller types can be read as larger ones
             (Byte, Short | Integer | Long)
-                | (Short, Integer | Long)
-                | (Integer, Long)
-                // Float widening: float can be read as double
-                | (Float, Double)
-                // Timestamp equivalence: both are i64 microseconds since epoch, differing only
-                // in timezone semantics. The parquet representation is identical, so reading
-                // one as the other is safe at the data layer.
-                | (Timestamp, TimestampNtz)
-                | (TimestampNtz, Timestamp)
-        )
+            | (Short, Integer | Long)
+            | (Integer, Long)
+            // Float widening: float can be read as double
+            | (Float, Double)
+            // Timestamp equivalence: both are times since epoch at the same precision,
+            // differing only in timezone semantics. The parquet representation is identical, so
+            // reading one as the other is safe at the data layer.
+            | (Timestamp, TimestampNtz)
+            | (TimestampNtz, Timestamp) => true,
+            #[cfg(feature = "nanosecond-timestamps")]
+            (TimestampNanos, TimestampNanosNtz) | (TimestampNanosNtz, TimestampNanos) => true,
+            #[cfg(feature = "float16")]
+            (Float16, Float | Double) => true,
+            _ => false,
+        }
     }
 
     /// Returns `true` if `self` can back `target` in the given checkpoint field.
@@ -2043,6 +2076,8 @@ impl PrimitiveType {
     /// Specifically:
     /// - Integer -> Date (int32 stored without DATE annotation)
     /// - Long -> Timestamp/TimestampNtz (int64 stored without TIMESTAMP annotation)
+    /// - TimestampNanos/TimestampNanosNtz -> Timestamp/TimestampNtz (nanosecond or INT96 encoding,
+    ///   which Arrow reads as nanoseconds; microsecond values convert exactly)
     /// - Binary -> Geometry (statistics only; the engine validates and decodes the WKB bounds)
     ///
     /// These are **not** Delta protocol type widening rules and must not be used outside of
@@ -2058,6 +2093,12 @@ impl PrimitiveType {
         match (self, target, kind) {
             (Self::Integer, Self::Date, _)
             | (Self::Long, Self::Timestamp | Self::TimestampNtz, _) => true,
+            #[cfg(feature = "nanosecond-timestamps")]
+            (
+                Self::TimestampNanos | Self::TimestampNanosNtz,
+                Self::Timestamp | Self::TimestampNtz,
+                _,
+            ) => true,
             #[cfg(feature = "geo-type-in-dev")]
             (Self::Binary, Self::Geometry(_), CheckpointFieldKind::Stats) => true,
             _ => false,
@@ -2183,6 +2224,16 @@ impl<'de> serde::Deserialize<'de> for PrimitiveType {
             "integer" => Ok(PrimitiveType::Integer),
             "short" => Ok(PrimitiveType::Short),
             "byte" => Ok(PrimitiveType::Byte),
+            #[cfg(feature = "float16")]
+            "float16" => Ok(PrimitiveType::Float16),
+            #[cfg(feature = "unsigned-integers")]
+            "uint8" => Ok(PrimitiveType::Uint8),
+            #[cfg(feature = "unsigned-integers")]
+            "uint16" => Ok(PrimitiveType::Uint16),
+            #[cfg(feature = "unsigned-integers")]
+            "uint32" => Ok(PrimitiveType::Uint32),
+            #[cfg(feature = "unsigned-integers")]
+            "uint64" => Ok(PrimitiveType::Uint64),
             "float" => Ok(PrimitiveType::Float),
             "double" => Ok(PrimitiveType::Double),
             "boolean" => Ok(PrimitiveType::Boolean),
@@ -2199,6 +2250,8 @@ impl<'de> serde::Deserialize<'de> for PrimitiveType {
             s if s.starts_with("interval ") => {
                 normalize_interval_type(s).ok_or_else(|| unsupported_delta_type_error(s))
             }
+            #[cfg(feature = "nanosecond-time")]
+            "time(9)" => Ok(PrimitiveType::TimeNanos),
             decimal_str if decimal_str.starts_with("decimal(") && decimal_str.ends_with(')') => {
                 // Parse decimal type
                 let mut parts = decimal_str[8..decimal_str.len() - 1].split(',');
@@ -2269,6 +2322,16 @@ impl Display for PrimitiveType {
             PrimitiveType::Integer => write!(f, "integer"),
             PrimitiveType::Short => write!(f, "short"),
             PrimitiveType::Byte => write!(f, "byte"),
+            #[cfg(feature = "float16")]
+            PrimitiveType::Float16 => write!(f, "float16"),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint8 => write!(f, "uint8"),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint16 => write!(f, "uint16"),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint32 => write!(f, "uint32"),
+            #[cfg(feature = "unsigned-integers")]
+            PrimitiveType::Uint64 => write!(f, "uint64"),
             PrimitiveType::Float => write!(f, "float"),
             PrimitiveType::Double => write!(f, "double"),
             PrimitiveType::Boolean => write!(f, "boolean"),
@@ -2282,6 +2345,8 @@ impl Display for PrimitiveType {
             PrimitiveType::TimestampNanosNtz => write!(f, "timestamp_nanos_ntz"),
             PrimitiveType::IntervalYearMonth => write!(f, "interval year to month"),
             PrimitiveType::IntervalDayTime => write!(f, "interval day to second"),
+            #[cfg(feature = "nanosecond-time")]
+            PrimitiveType::TimeNanos => write!(f, "time(9)"),
             PrimitiveType::Decimal(dtype) => {
                 write!(f, "decimal({},{})", dtype.precision(), dtype.scale())
             }
@@ -2407,6 +2472,16 @@ impl DataType {
     pub const INTEGER: Self = DataType::Primitive(PrimitiveType::Integer);
     pub const SHORT: Self = DataType::Primitive(PrimitiveType::Short);
     pub const BYTE: Self = DataType::Primitive(PrimitiveType::Byte);
+    #[cfg(feature = "float16")]
+    pub const FLOAT16: Self = DataType::Primitive(PrimitiveType::Float16);
+    #[cfg(feature = "unsigned-integers")]
+    pub const UINT8: Self = DataType::Primitive(PrimitiveType::Uint8);
+    #[cfg(feature = "unsigned-integers")]
+    pub const UINT16: Self = DataType::Primitive(PrimitiveType::Uint16);
+    #[cfg(feature = "unsigned-integers")]
+    pub const UINT32: Self = DataType::Primitive(PrimitiveType::Uint32);
+    #[cfg(feature = "unsigned-integers")]
+    pub const UINT64: Self = DataType::Primitive(PrimitiveType::Uint64);
     pub const FLOAT: Self = DataType::Primitive(PrimitiveType::Float);
     pub const DOUBLE: Self = DataType::Primitive(PrimitiveType::Double);
     pub const BOOLEAN: Self = DataType::Primitive(PrimitiveType::Boolean);
@@ -2414,8 +2489,12 @@ impl DataType {
     pub const DATE: Self = DataType::Primitive(PrimitiveType::Date);
     pub const TIMESTAMP: Self = DataType::Primitive(PrimitiveType::Timestamp);
     pub const TIMESTAMP_NTZ: Self = DataType::Primitive(PrimitiveType::TimestampNtz);
+    /// UTC-adjusted nanosecond timestamp. See [`PrimitiveType::TimestampNanos`] for its
+    /// representation and table-feature requirements.
     #[cfg(feature = "nanosecond-timestamps")]
     pub const TIMESTAMP_NANOS: Self = DataType::Primitive(PrimitiveType::TimestampNanos);
+    /// Nanosecond timestamp without a timezone. See [`PrimitiveType::TimestampNanosNtz`] for its
+    /// representation and table-feature requirements.
     #[cfg(feature = "nanosecond-timestamps")]
     pub const TIMESTAMP_NANOS_NTZ: Self = DataType::Primitive(PrimitiveType::TimestampNanosNtz);
     pub const VOID: Self = DataType::Primitive(PrimitiveType::Void);
@@ -2488,6 +2567,8 @@ impl DataType {
         }
     }
 
+    #[cfg(feature = "nanosecond-time")]
+    pub const TIME_NANOS: Self = DataType::Primitive(PrimitiveType::TimeNanos);
     /// Create a new decimal type with the given precision and scale.
     pub fn decimal(precision: u8, scale: u8) -> KernelResult<Self> {
         Ok(PrimitiveType::decimal(precision, scale)?.into())
@@ -2896,6 +2977,38 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "unsigned-integers")]
+    #[rstest]
+    #[case::uint8(PrimitiveType::Uint8, "uint8")]
+    #[case::uint16(PrimitiveType::Uint16, "uint16")]
+    #[case::uint32(PrimitiveType::Uint32, "uint32")]
+    #[case::uint64(PrimitiveType::Uint64, "uint64")]
+    fn unsigned_primitive_types_roundtrip_serde_and_display(
+        #[case] variant: PrimitiveType,
+        #[case] name: &str,
+    ) {
+        assert_eq!(variant.to_string(), name);
+        assert_eq!(
+            serde_json::to_value(&variant).unwrap(),
+            serde_json::json!(name)
+        );
+        let de: PrimitiveType = serde_json::from_value(serde_json::json!(name)).unwrap();
+        assert_eq!(de, variant);
+    }
+
+    #[cfg(feature = "nanosecond-time")]
+    #[test]
+    fn time_nanos_primitive_type_roundtrips_serde_and_display() {
+        let name = "time(9)";
+        assert_eq!(PrimitiveType::TimeNanos.to_string(), name);
+        assert_eq!(
+            serde_json::to_value(PrimitiveType::TimeNanos).unwrap(),
+            serde_json::json!(name)
+        );
+        let de: PrimitiveType = serde_json::from_value(serde_json::json!(name)).unwrap();
+        assert_eq!(de, PrimitiveType::TimeNanos);
+    }
+
     fn example_schema_metadata() -> &'static str {
         r#"
             {
@@ -3122,6 +3235,12 @@ mod tests {
     #[case("interval minute to minute")]
     // too many fields
     #[case("interval year to month to year")]
+    // only nanosecond precision is supported for parameterized time
+    #[case("time(6)")]
+    #[case("time( 9 )")]
+    #[case("time")]
+    #[case("time_nanos")]
+    #[cfg_attr(not(feature = "nanosecond-time"), case("time(9)"))]
     fn test_unsupported_type_error_message(#[case] unsupported_type: &str) {
         let data = format!(
             r#"{{
@@ -3147,6 +3266,7 @@ mod tests {
     #[case("integer", DataType::INTEGER)]
     #[case("short", DataType::SHORT)]
     #[case("byte", DataType::BYTE)]
+    #[cfg_attr(feature = "float16", case("float16", DataType::FLOAT16))]
     #[case("float", DataType::FLOAT)]
     #[case("double", DataType::DOUBLE)]
     #[case("boolean", DataType::BOOLEAN)]
@@ -3247,6 +3367,7 @@ mod tests {
     #[case("\"integer\"", DataType::INTEGER)]
     #[case("\"short\"", DataType::SHORT)]
     #[case("\"byte\"", DataType::BYTE)]
+    #[cfg_attr(feature = "float16", case("\"float16\"", DataType::FLOAT16))]
     #[case("\"float\"", DataType::FLOAT)]
     #[case("\"double\"", DataType::DOUBLE)]
     #[case("\"boolean\"", DataType::BOOLEAN)]

@@ -19,8 +19,8 @@ create-table and existing-table builders support this method. You can also add m
 while writing to a built transaction before committing it.
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # extern crate tokio;
 # use std::sync::Arc;
 # use delta_kernel::committer::FileSystemCommitter;
@@ -80,8 +80,8 @@ on create-table transactions because there is no metadata to remove from a table
 that does not exist yet.
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # extern crate tokio;
 # use std::sync::Arc;
 # use delta_kernel::committer::FileSystemCommitter;
@@ -124,8 +124,8 @@ To read domain metadata from a table, call `get_domain_metadata()` on a
 
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # extern crate tokio;
 # use std::sync::Arc;
 # use delta_kernel_default_engine::DefaultEngine;

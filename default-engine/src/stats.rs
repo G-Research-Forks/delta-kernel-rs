@@ -15,10 +15,11 @@ use delta_kernel::arrow::compute::kernels::aggregate::{
     bool_and, max, max_string, min, min_string, sum_checked,
 };
 use delta_kernel::arrow::datatypes::{
-    ArrowPrimitiveType, DataType, Date32Type, Date64Type, Decimal128Type, Field, Float32Type,
-    Float64Type, Int16Type, Int32Type, Int64Type, Int8Type, SchemaRef as ArrowSchemaRef, TimeUnit,
-    TimestampMicrosecondType, TimestampMillisecondType, TimestampNanosecondType,
-    TimestampSecondType, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+    ArrowPrimitiveType, DataType, Date32Type, Date64Type, Decimal128Type, Field, Float16Type,
+    Float32Type, Float64Type, Int16Type, Int32Type, Int64Type, Int8Type,
+    SchemaRef as ArrowSchemaRef, Time64NanosecondType, TimeUnit, TimestampMicrosecondType,
+    TimestampMillisecondType, TimestampNanosecondType, TimestampSecondType, UInt16Type, UInt32Type,
+    UInt64Type, UInt8Type,
 };
 use delta_kernel::column_trie::ColumnTrie;
 use delta_kernel::engine::arrow_utils::fix_nested_null_masks;
@@ -268,6 +269,7 @@ fn compute_leaf_agg(column: &ArrayRef, agg: Agg) -> KernelResult<Option<ArrayRef
         DataType::UInt64 => agg_primitive::<UInt64Type>(column, agg),
 
         // Float types
+        DataType::Float16 => agg_primitive::<Float16Type>(column, agg),
         DataType::Float32 => agg_primitive::<Float32Type>(column, agg),
         DataType::Float64 => agg_primitive::<Float64Type>(column, agg),
 
@@ -287,6 +289,10 @@ fn compute_leaf_agg(column: &ArrayRef, agg: Agg) -> KernelResult<Option<ArrayRef
         }
         DataType::Timestamp(TimeUnit::Nanosecond, tz) => {
             agg_timestamp::<TimestampNanosecondType>(column, tz.clone(), agg)
+        }
+
+        DataType::Time64(TimeUnit::Nanosecond) => {
+            agg_primitive::<Time64NanosecondType>(column, agg)
         }
 
         // Decimal type (preserve precision/scale)
@@ -905,8 +911,9 @@ fn interval_column_names(schema: &StructType, stats_columns: &[ColumnName]) -> V
 #[cfg(test)]
 mod tests {
     use delta_kernel::arrow::array::{
-        Array, AsArray, BinaryArray, Decimal128Array, Float64Array, Int32Array, Int64Array,
-        ListArray, MapArray, NullArray, RecordBatchOptions, StringArray,
+        Array, AsArray, BinaryArray, Decimal128Array, Float16Array, Float64Array, Int32Array,
+        Int64Array, ListArray, MapArray, NullArray, RecordBatchOptions, StringArray,
+        Time64NanosecondArray,
     };
     use delta_kernel::arrow::buffer::{NullBuffer, OffsetBuffer};
     use delta_kernel::arrow::compute::concat_batches;
@@ -916,6 +923,7 @@ mod tests {
     use delta_kernel::expressions::column_name;
     use delta_kernel::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
     use delta_kernel::schema::schema;
+    use half::f16;
     use test_utils::assert_result_error_with_message;
 
     use super::*;
@@ -1092,6 +1100,30 @@ mod tests {
             .downcast_ref::<StringArray>()
             .unwrap();
         assert_eq!(name_max.value(0), "cherry");
+    }
+
+    // Min/max for these types must not depend on the engine's feature flags: the kernel can treat
+    // them as skipping-eligible while the engine features are off.
+    #[rstest::rstest]
+    #[case::float16(
+        Arc::new(Float16Array::from(vec![Some(f16::from_f32(1.5)), None, Some(f16::from_f32(-2.0))])),
+        Arc::new(Float16Array::from(vec![f16::from_f32(-2.0)])),
+        Arc::new(Float16Array::from(vec![f16::from_f32(1.5)])),
+    )]
+    #[case::time_nanos(
+        Arc::new(Time64NanosecondArray::from(vec![Some(300), None, Some(100)])),
+        Arc::new(Time64NanosecondArray::from(vec![100])),
+        Arc::new(Time64NanosecondArray::from(vec![300])),
+    )]
+    fn test_compute_leaf_agg_min_max_without_engine_features(
+        #[case] column: ArrayRef,
+        #[case] expected_min: ArrayRef,
+        #[case] expected_max: ArrayRef,
+    ) {
+        let min = compute_leaf_agg(&column, Agg::Min).unwrap().unwrap();
+        let max = compute_leaf_agg(&column, Agg::Max).unwrap().unwrap();
+        assert_eq!(&min, &expected_min);
+        assert_eq!(&max, &expected_max);
     }
 
     #[test]

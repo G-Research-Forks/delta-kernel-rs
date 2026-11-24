@@ -30,8 +30,8 @@ what changed to reach the target `Snapshot`. The range must be non-empty:
 Call `incremental_scan_builder(base_version)` on a `Snapshot`, then `build(engine)`:
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # use delta_kernel_default_engine::DefaultEngine;
 # use delta_kernel_default_engine::storage::store_from_url;
 # use delta_kernel::{KernelResult, Snapshot};
@@ -66,8 +66,8 @@ error. It's the signal that an incremental advance isn't possible, so you rebuil
 from a full scan:
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # use std::sync::Arc;
 # use delta_kernel_default_engine::DefaultEngine;
 # use delta_kernel_default_engine::storage::store_from_url;
@@ -116,8 +116,8 @@ sets that describe the diff. `into_summary()` drains any batches you didn't read
 the live added and removed file keys:
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # use delta_kernel_default_engine::DefaultEngine;
 # use delta_kernel_default_engine::storage::store_from_url;
 # use delta_kernel::{KernelResult, Snapshot};
@@ -183,8 +183,8 @@ both `removes` and `duplicate_adds`:
   favor of the freshly streamed one.
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # use std::collections::HashSet;
 # use delta_kernel_default_engine::DefaultEngine;
 # use delta_kernel_default_engine::storage::store_from_url;

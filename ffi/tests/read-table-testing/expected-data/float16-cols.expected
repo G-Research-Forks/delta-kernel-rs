@@ -1,0 +1,21 @@
+Reading table at ../../../../kernel/tests/data/float16/
+version: 0
+
+Schema:
+├─ id: long
+└─ f16: float16
+
+id:  [
+  0,
+  1,
+  2,
+  3,
+  4
+]
+f16:  [
+  1.5,
+  -2.25,
+  0.125,
+  nan,
+  null
+]

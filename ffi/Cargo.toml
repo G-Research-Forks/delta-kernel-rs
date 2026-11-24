@@ -26,6 +26,7 @@ redundant_field_names = "allow"
 bytes = "1.10"
 derive_more = { version = "~2.1", default-features = false, features = ["constructor", "from"] }
 prost = { version = "0.13", optional = true }
+half = { version = "2.7.1", optional = true }
 tracing = "0.1"
 tracing-core = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", optional = true, features = [ "json" ] }
@@ -64,6 +65,28 @@ arrow = ["arrow-60"]
 arrow-60 = ["delta_kernel/arrow-60"]
 arrow-59 = ["delta_kernel/arrow-59"]
 
+# Experimental feature adding float16 primitive type:
+float16 = [
+  "dep:half",
+  "delta_kernel/float16",
+  "delta_kernel_default_engine?/float16",
+  "test_utils/float16",
+]
+
+# Experimental feature adding unsigned integer primitive types:
+unsigned-integers = [
+  "delta_kernel/unsigned-integers",
+  "delta_kernel_default_engine?/unsigned-integers",
+  "test_utils/unsigned-integers",
+]
+
+# Experimental feature adding the time of day in nanoseconds primitive type:
+nanosecond-time = [
+  "delta_kernel/nanosecond-time",
+  "delta_kernel_default_engine?/nanosecond-time",
+  "test_utils/nanosecond-time",
+]
+
 # Internal feature flag with the shared bits between default-engine-native-tls and
 # default-engine-rustls. Enable one of those two on the FFI crate instead to also pick a TLS backend.
 default-engine-base = ["delta_kernel/default-engine-base", "dep:delta_kernel_default_engine"]
@@ -87,7 +110,11 @@ geo-type-in-dev = ["delta_kernel/geo-type-in-dev"]
 udt-in-dev = ["delta_kernel/udt-in-dev"]
 
 # Preview feature, not yet part of Delta protocol.
-nanosecond-timestamps = ["delta_kernel/nanosecond-timestamps", "test_utils/nanosecond-timestamps"]
+nanosecond-timestamps = [
+  "delta_kernel/nanosecond-timestamps",
+  "delta_kernel_default_engine?/nanosecond-timestamps",
+  "test_utils/nanosecond-timestamps",
+]
 
 # Experimental, in-development feature flag gating Iceberg V4 adaptive metadata tree support.
 adaptive-metadata-in-dev = ["delta_kernel/adaptive-metadata-in-dev"]

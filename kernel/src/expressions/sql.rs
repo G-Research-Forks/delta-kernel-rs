@@ -12,6 +12,9 @@
 //! Delta metadata contains today. If the supported SQL surface grows, options include moving
 //! parsing behind the [`Engine`](crate::Engine) trait or adopting an existing SQL parser library.
 
+#[cfg(feature = "float16")]
+use half::f16;
+
 use crate::expressions::{lit, null_lit, Expression, Scalar};
 use crate::schema::{DataType, PrimitiveType};
 use crate::{KernelError, KernelResult};
@@ -74,6 +77,8 @@ fn parse_literal(trimmed: &str, data_type: &DataType, sql: &str) -> KernelResult
         PrimitiveType::Float | PrimitiveType::Double => {
             parse_double_or_float(primitive, trimmed, sql)?
         }
+        #[cfg(feature = "float16")]
+        PrimitiveType::Float16 => parse_double_or_float(primitive, trimmed, sql)?,
         _ => primitive.parse_scalar(trimmed)?,
     };
     Ok(lit(scalar))
@@ -192,12 +197,15 @@ fn require_utc_z_suffix(raw: &str, sql: &str) -> KernelResult<()> {
     })
 }
 
-/// Parse a bare FLOAT or DOUBLE literal, matching Spark's literal-typing + cast semantics:
+/// Parse a bare FLOAT, DOUBLE, or FLOAT16 literal, matching Spark's literal-typing + cast
+/// semantics:
 /// - Reject a non-exponent literal whose implied precision exceeds 38 (see
-///   [`exceeds_decimal_precision`]); only FLOAT/DOUBLE need this (Integer/Decimal already reject).
+///   [`exceeds_decimal_precision`]); only floating-point types need this (Integer/Decimal already
+///   reject).
 /// - For FLOAT, parse an exponent literal as f64 then narrow, matching Spark's DOUBLE-then-cast
 ///   (double rounding); a direct f32 parse single-rounds and can differ by 1 ULP.
-/// - Reject non-finite results and fold a plain `-0.0` to `+0.0` (exponent forms keep their sign).
+/// - Reject non-finite results, including finite literals that overflow the type, and fold a plain
+///   `-0.0` to `+0.0` (exponent forms keep their sign).
 fn parse_double_or_float(primitive: &PrimitiveType, raw: &str, sql: &str) -> KernelResult<Scalar> {
     let has_exponent = raw.contains(['e', 'E']);
     if !has_exponent && exceeds_decimal_precision(raw) {
@@ -222,8 +230,12 @@ fn parse_double_or_float(primitive: &PrimitiveType, raw: &str, sql: &str) -> Ker
     Ok(match scalar {
         Scalar::Float(f) if !f.is_finite() => return Err(non_finite_error()),
         Scalar::Double(d) if !d.is_finite() => return Err(non_finite_error()),
+        #[cfg(feature = "float16")]
+        Scalar::Float16(h) if !h.is_finite() => return Err(non_finite_error()),
         Scalar::Float(f) if normalize_neg_zero => Scalar::Float(f + 0.0),
         Scalar::Double(d) if normalize_neg_zero => Scalar::Double(d + 0.0),
+        #[cfg(feature = "float16")]
+        Scalar::Float16(h) if normalize_neg_zero => Scalar::Float16(h + f16::ZERO),
         other => other,
     })
 }
@@ -633,6 +645,62 @@ mod tests {
         );
     }
 
+    // FLOAT16's largest finite value is 65504, so finite-looking literals above it overflow to
+    // infinity and must be rejected like any other non-finite literal.
+    #[cfg(feature = "float16")]
+    #[rstest]
+    fn rejects_non_finite_float16(
+        #[values(
+            "NaN",
+            "inf",
+            "-inf",
+            "Infinity",
+            "-Infinity",
+            "1e999",
+            "70000",
+            "-70000",
+            "6.6e4"
+        )]
+        sql: &str,
+    ) {
+        let result = parse_sql(sql, &DataType::FLOAT16);
+        assert!(
+            result.is_err(),
+            "expected error for non-finite FLOAT16 literal {sql:?}, got {result:?}"
+        );
+    }
+
+    #[cfg(feature = "float16")]
+    #[rstest]
+    #[case("65504", f16::MAX)]
+    #[case("-65504", f16::MIN)]
+    #[case("1.5", f16::from_f32(1.5))]
+    #[case("-2.5E1", f16::from_f32(-25.0))]
+    fn parses_finite_float16(#[case] sql: &str, #[case] expected: f16) {
+        assert_eq!(parse_sql(sql, &DataType::FLOAT16).unwrap(), lit(expected));
+    }
+
+    // Same sign rules as FLOAT and DOUBLE: a plain `-0.0` folds to `+0.0`, an exponent form keeps
+    // its sign.
+    #[cfg(feature = "float16")]
+    #[rstest]
+    #[case("-0.0", false)]
+    #[case("-0", false)]
+    #[case("-0.0E0", true)]
+    #[case("-0e10", true)]
+    fn float16_negative_zero_sign(#[case] sql: &str, #[case] keeps_negative_sign: bool) {
+        let Expression::Literal(Scalar::Float16(h)) = parse_sql(sql, &DataType::FLOAT16).unwrap()
+        else {
+            panic!("expected a Float16 literal for {sql:?}");
+        };
+        assert_eq!(h, f16::ZERO, "{sql:?} is not zero: {h}");
+        assert_eq!(
+            h.is_sign_negative(),
+            keeps_negative_sign,
+            "{sql:?} sign: {h}"
+        );
+    }
+
     // A plain `-0.0` is a Spark decimal that folds to `+0.0`, so the parser normalizes the sign.
     // `assert_eq` on `Scalar` can't see it (`-0.0 == 0.0`), so check the sign bit directly.
     #[rstest]
@@ -708,6 +776,7 @@ mod tests {
     #[rstest]
     #[case(DataType::DOUBLE)]
     #[case(DataType::FLOAT)]
+    #[cfg_attr(feature = "float16", case(DataType::FLOAT16))]
     fn rejects_numeric_literal_over_decimal_precision_38(#[case] ty: DataType) {
         let thirty_nine_fraction = format!("0.{}", "1".repeat(39)); // sig 39, scale 39
         let forty_digit_integer = "1".repeat(40); // sig 40, scale 0

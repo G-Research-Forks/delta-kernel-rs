@@ -114,6 +114,12 @@ message Scalar {
     int64 interval_day_time = 19;   // day-time interval: signed microsecond count
     int64 timestamp_nanos = 20;       // nanos since epoch, UTC
     int64 timestamp_nanos_ntz = 21;   // nanos since epoch, no tz
+    uint32 float16 = 22;              // IEEE 754 binary16 bits in the low 16 bits
+    uint32 uint8 = 23;
+    uint32 uint16 = 24;
+    uint32 uint32 = 25;
+    uint64 uint64 = 26;
+    int64 time_nanos = 27;            // nanos since midnight, no tz
   }
 }
 

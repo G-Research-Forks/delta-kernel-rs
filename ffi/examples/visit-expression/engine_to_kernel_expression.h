@@ -29,6 +29,56 @@ uintptr_t convert_engine_to_kernel_literal(
       return visit_expression_literal_short(state, lit->value.short_data);
     case Byte:
       return visit_expression_literal_byte(state, lit->value.byte_data);
+    case Uint8: {
+      ExternResultusize result =
+          visit_expression_literal_uint8(state, lit->value.uint8_data, allocate_error);
+      if (result.tag == Errusize) {
+        print_error("visit_expression_literal_uint8 failed", (Error*)result.err);
+        free_error((Error*)result.err);
+        abort();
+      }
+      return result.ok;
+    }
+    case Uint16: {
+      ExternResultusize result =
+          visit_expression_literal_uint16(state, lit->value.uint16_data, allocate_error);
+      if (result.tag == Errusize) {
+        print_error("visit_expression_literal_uint16 failed", (Error*)result.err);
+        free_error((Error*)result.err);
+        abort();
+      }
+      return result.ok;
+    }
+    case Uint32: {
+      ExternResultusize result =
+          visit_expression_literal_uint32(state, lit->value.uint32_data, allocate_error);
+      if (result.tag == Errusize) {
+        print_error("visit_expression_literal_uint32 failed", (Error*)result.err);
+        free_error((Error*)result.err);
+        abort();
+      }
+      return result.ok;
+    }
+    case Uint64: {
+      ExternResultusize result =
+          visit_expression_literal_uint64(state, lit->value.uint64_data, allocate_error);
+      if (result.tag == Errusize) {
+        print_error("visit_expression_literal_uint64 failed", (Error*)result.err);
+        free_error((Error*)result.err);
+        abort();
+      }
+      return result.ok;
+    }
+    case Float16: {
+      ExternResultusize result =
+          visit_expression_literal_float16(state, lit->value.float16_bits, allocate_error);
+      if (result.tag == Errusize) {
+        print_error("visit_expression_literal_float16 failed", (Error*)result.err);
+        free_error((Error*)result.err);
+        abort();
+      }
+      return result.ok;
+    }
     case Float:
       return visit_expression_literal_float(state, lit->value.float_data);
     case Double:
@@ -54,6 +104,36 @@ uintptr_t convert_engine_to_kernel_literal(
     case TimestampNtz:
       return visit_expression_literal_timestamp_ntz(state,
           lit->value.long_data);
+    case TimestampNanos: {
+      ExternResultusize result = visit_expression_literal_timestamp_nanos(
+          state, lit->value.long_data, allocate_error);
+      if (result.tag == Errusize) {
+        print_error("visit_expression_literal_timestamp_nanos failed", (Error*)result.err);
+        free_error((Error*)result.err);
+        abort();
+      }
+      return result.ok;
+    }
+    case TimestampNanosNtz: {
+      ExternResultusize result = visit_expression_literal_timestamp_nanos_ntz(
+          state, lit->value.long_data, allocate_error);
+      if (result.tag == Errusize) {
+        print_error("visit_expression_literal_timestamp_nanos_ntz failed", (Error*)result.err);
+        free_error((Error*)result.err);
+        abort();
+      }
+      return result.ok;
+    }
+    case TimeNanos: {
+      ExternResultusize result =
+          visit_expression_literal_time_nanos(state, lit->value.long_data, allocate_error);
+      if (result.tag == Errusize) {
+        print_error("visit_expression_literal_time_nanos failed", (Error*)result.err);
+        free_error((Error*)result.err);
+        abort();
+      }
+      return result.ok;
+    }
     case Date:
       return visit_expression_literal_date(state, lit->value.integer_data);
     case IntervalYearMonth:

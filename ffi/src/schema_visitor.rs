@@ -295,6 +295,183 @@ pub unsafe extern "C" fn visit_field_byte(
         .into_extern_result(&allocate_error)
 }
 
+/// EXPERIMENTAL. Visit a uint8 field. Uint8 fields store 8-bit unsigned integers.
+///
+/// Returns an error if kernel was not built with the `unsigned-integers` feature.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer. When non-null, `metadata` must point to a valid
+/// descriptor and callback.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_uint8(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    metadata: *const EngineMetadata,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_unsigned_impl(state, name_str, UnsignedWidth::U8, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+/// EXPERIMENTAL. Visit a uint16 field. Uint16 fields store 16-bit unsigned integers.
+///
+/// Returns an error if kernel was not built with the `unsigned-integers` feature.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer. When non-null, `metadata` must point to a valid
+/// descriptor and callback.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_uint16(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    metadata: *const EngineMetadata,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_unsigned_impl(state, name_str, UnsignedWidth::U16, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+/// EXPERIMENTAL. Visit a uint32 field. Uint32 fields store 32-bit unsigned integers.
+///
+/// Returns an error if kernel was not built with the `unsigned-integers` feature.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer. When non-null, `metadata` must point to a valid
+/// descriptor and callback.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_uint32(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    metadata: *const EngineMetadata,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_unsigned_impl(state, name_str, UnsignedWidth::U32, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+/// EXPERIMENTAL. Visit a uint64 field. Uint64 fields store 64-bit unsigned integers.
+///
+/// Returns an error if kernel was not built with the `unsigned-integers` feature.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer. When non-null, `metadata` must point to a valid
+/// descriptor and callback.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_uint64(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    metadata: *const EngineMetadata,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_unsigned_impl(state, name_str, UnsignedWidth::U64, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+/// Bit width selector for the unsigned integer field visitors, which exist regardless of the
+/// `unsigned-integers` feature so the C ABI does not depend on it.
+#[derive(Clone, Copy)]
+enum UnsignedWidth {
+    U8,
+    U16,
+    U32,
+    U64,
+}
+
+#[cfg(feature = "unsigned-integers")]
+fn visit_field_unsigned_impl(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelResult<&str>,
+    width: UnsignedWidth,
+    nullable: bool,
+    metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
+    let ptype = match width {
+        UnsignedWidth::U8 => PrimitiveType::Uint8,
+        UnsignedWidth::U16 => PrimitiveType::Uint16,
+        UnsignedWidth::U32 => PrimitiveType::Uint32,
+        UnsignedWidth::U64 => PrimitiveType::Uint64,
+    };
+    visit_field_primitive_impl(state, name, ptype, nullable, metadata)
+}
+
+#[cfg(not(feature = "unsigned-integers"))]
+fn visit_field_unsigned_impl(
+    _state: &mut KernelSchemaVisitorState,
+    _name: KernelResult<&str>,
+    _width: UnsignedWidth,
+    _nullable: bool,
+    _metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
+    Err(KernelError::unsupported(
+        "`unsigned-integers` feature not enabled in delta-kernel",
+    ))
+}
+
+/// Visit a float16 field. Float16 fields store 16-bit floating point numbers.
+///
+/// Returns an error if kernel was not built with the `float16` feature.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer. When non-null, `metadata` must point to a valid
+/// descriptor and callback.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_float16(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    metadata: *const EngineMetadata,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_float16_impl(state, name_str, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+#[cfg(feature = "float16")]
+fn visit_field_float16_impl(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelResult<&str>,
+    nullable: bool,
+    metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
+    visit_field_primitive_impl(state, name, PrimitiveType::Float16, nullable, metadata)
+}
+
+#[cfg(not(feature = "float16"))]
+fn visit_field_float16_impl(
+    _state: &mut KernelSchemaVisitorState,
+    _name: KernelResult<&str>,
+    _nullable: bool,
+    _metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
+    Err(KernelError::unsupported(
+        "`float16` feature not enabled in delta-kernel",
+    ))
+}
+
 /// Visit a float field. Float fields store 32-bit floating point numbers.
 ///
 /// # Safety
@@ -630,8 +807,9 @@ fn visit_field_geography_impl(
     )
 }
 
-#[cfg(feature = "nanosecond-timestamps")]
 /// Visit a timestamp_nanos field. Similar to timestamp but nanosecond resolution.
+///
+/// Returns an error if kernel was not built with the `nanosecond-timestamps` feature.
 ///
 /// # Safety
 ///
@@ -648,18 +826,41 @@ pub unsafe extern "C" fn visit_field_timestamp_nanos(
 ) -> ExternResult<usize> {
     let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
     let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_timestamp_nanos_impl(state, name_str, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+#[cfg(feature = "nanosecond-timestamps")]
+fn visit_field_timestamp_nanos_impl(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelResult<&str>,
+    nullable: bool,
+    metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
     visit_field_primitive_impl(
         state,
-        name_str,
+        name,
         PrimitiveType::TimestampNanos,
         nullable,
         metadata,
     )
-    .into_extern_result(&allocate_error)
 }
 
-#[cfg(feature = "nanosecond-timestamps")]
+#[cfg(not(feature = "nanosecond-timestamps"))]
+fn visit_field_timestamp_nanos_impl(
+    _state: &mut KernelSchemaVisitorState,
+    _name: KernelResult<&str>,
+    _nullable: bool,
+    _metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
+    Err(KernelError::unsupported(
+        "`nanosecond-timestamps` feature not enabled in delta-kernel",
+    ))
+}
+
 /// Visit a timestamp_nanos_ntz field. Similar to timestamp_ntz but nanosecond resolution.
+///
+/// Returns an error if kernel was not built with the `nanosecond-timestamps` feature.
 ///
 /// # Safety
 ///
@@ -676,14 +877,82 @@ pub unsafe extern "C" fn visit_field_timestamp_nanos_ntz(
 ) -> ExternResult<usize> {
     let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
     let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_timestamp_nanos_ntz_impl(state, name_str, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+#[cfg(feature = "nanosecond-timestamps")]
+fn visit_field_timestamp_nanos_ntz_impl(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelResult<&str>,
+    nullable: bool,
+    metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
     visit_field_primitive_impl(
         state,
-        name_str,
+        name,
         PrimitiveType::TimestampNanosNtz,
         nullable,
         metadata,
     )
-    .into_extern_result(&allocate_error)
+}
+
+#[cfg(not(feature = "nanosecond-timestamps"))]
+fn visit_field_timestamp_nanos_ntz_impl(
+    _state: &mut KernelSchemaVisitorState,
+    _name: KernelResult<&str>,
+    _nullable: bool,
+    _metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
+    Err(KernelError::unsupported(
+        "`nanosecond-timestamps` feature not enabled in delta-kernel",
+    ))
+}
+
+/// EXPERIMENTAL. Visit a `time(9)` field. These fields store a time of day in nanoseconds
+/// since midnight, with no timezone.
+///
+/// Returns an error if kernel was not built with the `nanosecond-time` feature.
+///
+/// # Safety
+///
+/// Caller is responsible for providing a valid `state`, `name` slice with valid UTF-8 data,
+/// and `allocate_error` function pointer. When non-null, `metadata` must point to a valid
+/// descriptor and callback.
+#[no_mangle]
+pub unsafe extern "C" fn visit_field_time_nanos(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelStringSlice,
+    nullable: bool,
+    metadata: *const EngineMetadata,
+    allocate_error: AllocateErrorFn,
+) -> ExternResult<usize> {
+    let name_str = unsafe { TryFromStringSlice::try_from_slice(&name) };
+    let metadata = visit_engine_metadata(unsafe { metadata.as_ref() });
+    visit_field_time_nanos_impl(state, name_str, nullable, metadata)
+        .into_extern_result(&allocate_error)
+}
+
+#[cfg(feature = "nanosecond-time")]
+fn visit_field_time_nanos_impl(
+    state: &mut KernelSchemaVisitorState,
+    name: KernelResult<&str>,
+    nullable: bool,
+    metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
+    visit_field_primitive_impl(state, name, PrimitiveType::TimeNanos, nullable, metadata)
+}
+
+#[cfg(not(feature = "nanosecond-time"))]
+fn visit_field_time_nanos_impl(
+    _state: &mut KernelSchemaVisitorState,
+    _name: KernelResult<&str>,
+    _nullable: bool,
+    _metadata: KernelResult<HashMap<String, MetadataValue>>,
+) -> KernelResult<usize> {
+    Err(KernelError::unsupported(
+        "`nanosecond-time` feature not enabled in delta-kernel",
+    ))
 }
 
 /// Visit a decimal field. Decimal fields store fixed-precision decimal numbers with specified
@@ -1030,6 +1299,39 @@ mod tests {
     };
     use crate::scan::visit_metadata_map;
     use crate::{KernelStringSlice, NullableCvoid};
+
+    #[cfg(not(feature = "nanosecond-timestamps"))]
+    type VisitTimestampNanosFieldFn = unsafe extern "C" fn(
+        &mut KernelSchemaVisitorState,
+        KernelStringSlice,
+        bool,
+        *const EngineMetadata,
+        AllocateErrorFn,
+    ) -> ExternResult<usize>;
+
+    #[cfg(not(feature = "nanosecond-timestamps"))]
+    #[rstest]
+    fn timestamp_nanos_field_visitors_require_feature(
+        #[values(visit_field_timestamp_nanos, visit_field_timestamp_nanos_ntz)]
+        visit: VisitTimestampNanosFieldFn,
+    ) {
+        let mut state = KernelSchemaVisitorState::default();
+        let result = unsafe {
+            visit(
+                &mut state,
+                KernelStringSlice::new_unsafe("ts"),
+                true,
+                null(),
+                allocate_err,
+            )
+        };
+        assert_extern_result_error_contains(
+            result,
+            FFIKernelError::UnsupportedError,
+            "nanosecond-timestamps",
+        );
+        assert!(state.elements.is_empty());
+    }
 
     /// Verifies annotation validation and ownership of parent and physical-field attributes.
     #[cfg(feature = "udt-in-dev")]
@@ -2135,6 +2437,11 @@ mod tests {
         //   col_byte: byte,
         //   col_double: double,
         //   col_float: float,
+        //   col_float16: f16,
+        //   col_uint8: uint8,
+        //   col_uint16: uint16,
+        //   col_uint32: uint32,
+        //   col_uint64: uint64,
         //   col_boolean: boolean,
         //   col_binary: binary,
         //   col_date: date,
@@ -2196,6 +2503,18 @@ mod tests {
             false,
             null()
         );
+        #[cfg(feature = "float16")]
+        let col_float16 = visit_field!(float16, state, "col_float16", false, null());
+        #[cfg(feature = "unsigned-integers")]
+        let col_uint8 = visit_field!(uint8, state, "col_uint8", false, null());
+        #[cfg(feature = "unsigned-integers")]
+        let col_uint16 = visit_field!(uint16, state, "col_uint16", false, null());
+        #[cfg(feature = "unsigned-integers")]
+        let col_uint32 = visit_field!(uint32, state, "col_uint32", false, null());
+        #[cfg(feature = "unsigned-integers")]
+        let col_uint64 = visit_field!(uint64, state, "col_uint64", false, null());
+        #[cfg(feature = "nanosecond-time")]
+        let col_time_nanos = visit_field!(time_nanos, state, "col_time_nanos", false, null());
         let col_decimal = visit_field!(decimal, state, "col_decimal", 10, 2, false, null());
 
         // Create array<string>
@@ -2278,6 +2597,18 @@ mod tests {
             col_timestamp_nanos,
             #[cfg(feature = "nanosecond-timestamps")]
             col_timestamp_nanos_ntz,
+            #[cfg(feature = "float16")]
+            col_float16,
+            #[cfg(feature = "unsigned-integers")]
+            col_uint8,
+            #[cfg(feature = "unsigned-integers")]
+            col_uint16,
+            #[cfg(feature = "unsigned-integers")]
+            col_uint32,
+            #[cfg(feature = "unsigned-integers")]
+            col_uint64,
+            #[cfg(feature = "nanosecond-time")]
+            col_time_nanos,
         ];
         let schema_id = ok_or_panic(unsafe {
             visit_field_struct(
@@ -2296,7 +2627,10 @@ mod tests {
         let fields: Vec<_> = schema.fields().collect();
         let expected_len = 20
             + cfg!(feature = "geo-type-in-dev") as usize * 2
-            + cfg!(feature = "nanosecond-timestamps") as usize * 2;
+            + cfg!(feature = "nanosecond-timestamps") as usize * 2
+            + cfg!(feature = "float16") as usize
+            + cfg!(feature = "unsigned-integers") as usize * 4
+            + cfg!(feature = "nanosecond-time") as usize;
         assert_eq!(fields.len(), expected_len);
 
         // Validate the primitive fields
@@ -2398,6 +2732,47 @@ mod tests {
                 &DataType::Primitive(PrimitiveType::TimestampNanosNtz)
             );
             assert!(!fields[nanos_base + 1].is_nullable());
+        }
+
+        #[cfg(feature = "float16")]
+        {
+            let float16_index = 20
+                + cfg!(feature = "geo-type-in-dev") as usize * 2
+                + cfg!(feature = "nanosecond-timestamps") as usize * 2;
+            assert_eq!(fields[float16_index].name(), "col_float16");
+            assert_eq!(
+                fields[float16_index].data_type(),
+                &DataType::Primitive(PrimitiveType::Float16)
+            );
+            assert!(!fields[float16_index].is_nullable());
+        }
+
+        #[cfg(feature = "unsigned-integers")]
+        {
+            let uint_base = 20
+                + cfg!(feature = "geo-type-in-dev") as usize * 2
+                + cfg!(feature = "nanosecond-timestamps") as usize * 2
+                + cfg!(feature = "float16") as usize;
+            let expected = [
+                ("col_uint8", PrimitiveType::Uint8),
+                ("col_uint16", PrimitiveType::Uint16),
+                ("col_uint32", PrimitiveType::Uint32),
+                ("col_uint64", PrimitiveType::Uint64),
+            ];
+            for (offset, (name, ptype)) in expected.into_iter().enumerate() {
+                let field = fields[uint_base + offset];
+                assert_eq!(field.name(), name);
+                assert_eq!(field.data_type(), &DataType::Primitive(ptype));
+                assert!(!field.is_nullable());
+            }
+        }
+
+        #[cfg(feature = "nanosecond-time")]
+        {
+            let field = fields[expected_len - 1];
+            assert_eq!(field.name(), "col_time_nanos");
+            assert_eq!(field.data_type(), &DataType::TIME_NANOS);
+            assert!(!field.is_nullable());
         }
     }
 

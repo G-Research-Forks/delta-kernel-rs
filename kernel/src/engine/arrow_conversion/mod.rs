@@ -351,6 +351,16 @@ impl TryFromKernel<&DataType> for ArrowDataType {
                     PrimitiveType::Integer => Ok(ArrowDataType::Int32),
                     PrimitiveType::Short => Ok(ArrowDataType::Int16),
                     PrimitiveType::Byte => Ok(ArrowDataType::Int8),
+                    #[cfg(feature = "float16")]
+                    PrimitiveType::Float16 => Ok(ArrowDataType::Float16),
+                    #[cfg(feature = "unsigned-integers")]
+                    PrimitiveType::Uint8 => Ok(ArrowDataType::UInt8),
+                    #[cfg(feature = "unsigned-integers")]
+                    PrimitiveType::Uint16 => Ok(ArrowDataType::UInt16),
+                    #[cfg(feature = "unsigned-integers")]
+                    PrimitiveType::Uint32 => Ok(ArrowDataType::UInt32),
+                    #[cfg(feature = "unsigned-integers")]
+                    PrimitiveType::Uint64 => Ok(ArrowDataType::UInt64),
                     PrimitiveType::Float => Ok(ArrowDataType::Float32),
                     PrimitiveType::Double => Ok(ArrowDataType::Float64),
                     PrimitiveType::Boolean => Ok(ArrowDataType::Boolean),
@@ -390,6 +400,8 @@ impl TryFromKernel<&DataType> for ArrowDataType {
                             "Geo types are not yet supported in the default engine: {p}"
                         )))
                     }
+                    #[cfg(feature = "nanosecond-time")]
+                    PrimitiveType::TimeNanos => Ok(ArrowDataType::Time64(TimeUnit::Nanosecond)),
                 }
             }
             DataType::Struct(s) => Ok(ArrowDataType::Struct(
@@ -572,10 +584,24 @@ impl TryFromArrow<&ArrowDataType> for DataType {
             ArrowDataType::Int32 => Ok(DataType::INTEGER),
             ArrowDataType::Int16 => Ok(DataType::SHORT),
             ArrowDataType::Int8 => Ok(DataType::BYTE),
+            #[cfg(feature = "unsigned-integers")]
+            ArrowDataType::UInt64 => Ok(DataType::UINT64),
+            #[cfg(feature = "unsigned-integers")]
+            ArrowDataType::UInt32 => Ok(DataType::UINT32),
+            #[cfg(feature = "unsigned-integers")]
+            ArrowDataType::UInt16 => Ok(DataType::UINT16),
+            #[cfg(feature = "unsigned-integers")]
+            ArrowDataType::UInt8 => Ok(DataType::UINT8),
+            #[cfg(not(feature = "unsigned-integers"))]
             ArrowDataType::UInt64 => Ok(DataType::LONG), // undocumented type
+            #[cfg(not(feature = "unsigned-integers"))]
             ArrowDataType::UInt32 => Ok(DataType::INTEGER),
+            #[cfg(not(feature = "unsigned-integers"))]
             ArrowDataType::UInt16 => Ok(DataType::SHORT),
+            #[cfg(not(feature = "unsigned-integers"))]
             ArrowDataType::UInt8 => Ok(DataType::BYTE),
+            #[cfg(feature = "float16")]
+            ArrowDataType::Float16 => Ok(DataType::FLOAT16),
             ArrowDataType::Null => Ok(DataType::VOID),
             ArrowDataType::Float32 => Ok(DataType::FLOAT),
             ArrowDataType::Float64 => Ok(DataType::DOUBLE),
@@ -622,7 +648,7 @@ impl TryFromArrow<&ArrowDataType> for DataType {
                 Ok(DataType::TIMESTAMP)
             }
             // Fall back to converting nanosecond timestamps to microsecond when the
-            // nanosecond-timestamp feature is not enabled.
+            // `nanosecond-timestamps` feature is not enabled.
             #[cfg(not(feature = "nanosecond-timestamps"))]
             ArrowDataType::Timestamp(TimeUnit::Nanosecond, None) => Ok(DataType::TIMESTAMP_NTZ),
             #[cfg(not(feature = "nanosecond-timestamps"))]
@@ -631,6 +657,8 @@ impl TryFromArrow<&ArrowDataType> for DataType {
             {
                 Ok(DataType::TIMESTAMP)
             }
+            #[cfg(feature = "nanosecond-time")]
+            ArrowDataType::Time64(TimeUnit::Nanosecond) => Ok(DataType::TIME_NANOS),
             ArrowDataType::Struct(fields) => DataType::try_struct_type_from_results(
                 fields.iter().map(|field| field.as_ref().try_into_kernel()),
             )
@@ -793,6 +821,33 @@ mod tests {
         assert_eq!(ntz, DataType::TIMESTAMP_NTZ);
 
         Ok(())
+    }
+
+    // Without `nanosecond-timestamps`, nanosecond Arrow timestamps map to the microsecond types,
+    // so tables created from such schemas do not require the `timestampNanos` feature.
+    #[cfg(not(feature = "nanosecond-timestamps"))]
+    #[rstest]
+    #[case::utc(Some("UTC"), DataType::TIMESTAMP)]
+    #[case::ntz(None, DataType::TIMESTAMP_NTZ)]
+    fn test_nanosecond_timestamp_converts_to_microsecond_type_without_feature(
+        #[case] timezone: Option<&str>,
+        #[case] expected: DataType,
+    ) -> KernelResult<()> {
+        let arrow_type = ArrowDataType::Timestamp(TimeUnit::Nanosecond, timezone.map(Into::into));
+        assert_eq!(DataType::try_from_arrow(&arrow_type)?, expected);
+        Ok(())
+    }
+
+    // Timestamp stats are serialized with a hardcoded `Z` suffix, which is only correct when the
+    // Arrow timezone is UTC, so any other timezone must be rejected.
+    #[rstest]
+    fn test_non_utc_timestamp_conversion_fails(
+        #[values(TimeUnit::Millisecond, TimeUnit::Microsecond, TimeUnit::Nanosecond)]
+        unit: TimeUnit,
+        #[values("", "+08:00", "America/New_York")] timezone: &str,
+    ) {
+        let arrow_type = ArrowDataType::Timestamp(unit, Some(timezone.into()));
+        assert!(DataType::try_from_arrow(&arrow_type).is_err());
     }
 
     // void is inherently always-null, so nullable=false is semantically contradictory.
@@ -1208,5 +1263,45 @@ mod tests {
                 (PARQUET_FIELD_ID_META_KEY.to_string(), id.to_string()),
             ])),
         )
+    }
+
+    #[cfg(feature = "nanosecond-time")]
+    #[test]
+    fn time_nanos_kernel_arrow_roundtrip() {
+        let arrow_type = ArrowDataType::Time64(TimeUnit::Nanosecond);
+        assert_eq!(
+            ArrowDataType::try_from_kernel(&DataType::TIME_NANOS).unwrap(),
+            arrow_type
+        );
+        assert_eq!(
+            DataType::try_from_arrow(&arrow_type).unwrap(),
+            DataType::TIME_NANOS
+        );
+    }
+
+    /// Other time units have no Delta type, and are not widened to nanoseconds.
+    #[rstest]
+    #[case::time32_second(ArrowDataType::Time32(TimeUnit::Second))]
+    #[case::time32_millisecond(ArrowDataType::Time32(TimeUnit::Millisecond))]
+    #[case::time64_microsecond(ArrowDataType::Time64(TimeUnit::Microsecond))]
+    fn other_time_units_are_rejected(#[case] arrow_type: ArrowDataType) {
+        assert!(DataType::try_from_arrow(&arrow_type).is_err());
+    }
+
+    #[cfg(feature = "unsigned-integers")]
+    #[rstest]
+    #[case::uint8(DataType::UINT8, ArrowDataType::UInt8)]
+    #[case::uint16(DataType::UINT16, ArrowDataType::UInt16)]
+    #[case::uint32(DataType::UINT32, ArrowDataType::UInt32)]
+    #[case::uint64(DataType::UINT64, ArrowDataType::UInt64)]
+    fn unsigned_kernel_arrow_roundtrip(
+        #[case] kernel_type: DataType,
+        #[case] arrow_type: ArrowDataType,
+    ) {
+        assert_eq!(
+            ArrowDataType::try_from_kernel(&kernel_type).unwrap(),
+            arrow_type
+        );
+        assert_eq!(DataType::try_from_arrow(&arrow_type).unwrap(), kernel_type);
     }
 }

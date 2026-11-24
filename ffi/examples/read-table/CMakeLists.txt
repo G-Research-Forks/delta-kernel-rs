@@ -7,6 +7,7 @@ option(
   GEO_TYPE_IN_DEV
   "Register the geometry/geography schema test. Requires delta_kernel_ffi built with --features geo-type-in-dev."
   OFF)
+option(FLOAT16 "Register the float16 projection test. Requires delta_kernel_ffi built with --features float16." OFF)
 add_executable(read_table read_table.c arrow.c ../common/kernel_utils.c)
 target_compile_definitions(read_table PUBLIC DEFINE_DEFAULT_ENGINE_BASE)
 target_include_directories(read_table PUBLIC 
@@ -53,6 +54,10 @@ add_test(NAME read_arrow_metadata_basic COMMAND ${TestRunner} ${DatPath}/basic_p
 # prints per field.
 add_test(NAME read_column_mapping_metadata COMMAND ${TestRunner} ${DatPath}/column_mapping/delta/ ${ExpectedPath}/column-mapping-arrow-metadata.expected -a)
 add_test(NAME read_projected_column_mapping COMMAND ${TestRunner} ${DatPath}/column_mapping/delta/ ${ExpectedPath}/column-mapping-projected.expected -cletter,new_int)
+# Projecting a float16 column sends it back through the engine-to-kernel schema visitor.
+if(FLOAT16)
+  add_test(NAME read_projected_float16 COMMAND ${TestRunner} ${KernelTestPath}/float16/ ${ExpectedPath}/float16-cols.expected -cid,f16)
+endif()
 if(GEO_TYPE_IN_DEV)
   target_compile_definitions(read_table PUBLIC DEFINE_GEO_TYPE_IN_DEV)
   add_test(NAME read_and_print_geo COMMAND ${TestRunner} ${KernelTestPath}/table-with-geo/ ${ExpectedPath}/table-with-geo.expected)

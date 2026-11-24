@@ -410,6 +410,11 @@ impl<'a> SchemaTransform<'a> for MinMaxStatsTransform {
 ///
 /// See: <https://github.com/delta-io/delta/blob/143ab3337121248d2ca6a7d5bc31deae7c8fe4be/kernel/kernel-api/src/main/java/io/delta/kernel/internal/skipping/StatsSchemaHelper.java#L61>
 pub(crate) fn is_skipping_eligible_datatype(data_type: &PrimitiveType) -> bool {
+    #[cfg(not(feature = "float16"))]
+    let is_float16 = false;
+    #[cfg(feature = "float16")]
+    let is_float16 = data_type == &PrimitiveType::Float16;
+
     #[cfg(feature = "nanosecond-timestamps")]
     let is_nanos = matches!(
         data_type,
@@ -417,6 +422,22 @@ pub(crate) fn is_skipping_eligible_datatype(data_type: &PrimitiveType) -> bool {
     );
     #[cfg(not(feature = "nanosecond-timestamps"))]
     let is_nanos = false;
+
+    #[cfg(not(feature = "nanosecond-time"))]
+    let is_time_nanos = false;
+    #[cfg(feature = "nanosecond-time")]
+    let is_time_nanos = data_type == &PrimitiveType::TimeNanos;
+
+    #[cfg(not(feature = "unsigned-integers"))]
+    let is_unsigned = false;
+    #[cfg(feature = "unsigned-integers")]
+    let is_unsigned = matches!(
+        data_type,
+        &PrimitiveType::Uint8
+            | &PrimitiveType::Uint16
+            | &PrimitiveType::Uint32
+            | &PrimitiveType::Uint64
+    );
 
     matches!(
         data_type,
@@ -431,7 +452,10 @@ pub(crate) fn is_skipping_eligible_datatype(data_type: &PrimitiveType) -> bool {
             | &PrimitiveType::TimestampNtz
             | &PrimitiveType::String
             | PrimitiveType::Decimal(_)
-    ) || is_nanos
+    ) || is_float16
+        || is_nanos
+        || is_unsigned
+        || is_time_nanos
 }
 
 #[cfg(test)]
@@ -523,6 +547,30 @@ mod tests {
         let expected = expected_stats(null_count, expected_min_max);
 
         assert_eq!(&expected, &stats_schema);
+    }
+
+    #[cfg(feature = "nanosecond-timestamps")]
+    #[test]
+    fn test_stats_schema_includes_timestamp_nanos_min_max() {
+        let properties: TableProperties = [("key", "value")].into();
+        let file_schema = schema! {
+            nullable "ts": TIMESTAMP_NANOS,
+            nullable "ts_ntz": TIMESTAMP_NANOS_NTZ,
+        };
+
+        let stats_schema = expected_stats_schema(
+            &file_schema,
+            &stats_config_from_table_properties(&properties),
+            None,
+            None,
+        )
+        .unwrap();
+        let null_count = schema! {
+            nullable "ts": LONG,
+            nullable "ts_ntz": LONG,
+        };
+
+        assert_eq!(stats_schema, expected_stats(null_count, file_schema));
     }
 
     #[test]

@@ -44,7 +44,7 @@ to extract each file (represented as a `ScanFile`) in the batch.
 
 For example:
 ```rust,no_run
-# extern crate delta_kernel;
+# extern crate buoyant_kernel as delta_kernel;
 # use delta_kernel::scan::state::ScanFile;
 # use delta_kernel::{KernelResult, Engine};
 # fn perform_read(_chunk: &[ScanFile]) {}
@@ -256,8 +256,8 @@ it parses the string map per file.
 To have Kernel hand you the typed values directly, opt in with `with_partition_values`:
 
 ```rust,no_run
-# extern crate delta_kernel;
-# extern crate delta_kernel_default_engine;
+# extern crate buoyant_kernel as delta_kernel;
+# extern crate buoyant_kernel_engine as delta_kernel_default_engine;
 # use std::sync::Arc;
 # use delta_kernel_default_engine::DefaultEngine;
 # use delta_kernel_default_engine::storage::store_from_url;

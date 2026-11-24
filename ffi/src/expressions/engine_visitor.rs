@@ -103,12 +103,6 @@ pub struct EngineExpressionVisitor {
     /// Visit a 64bit timestamp belonging to the list identified by `sibling_list_id`.
     /// The timestamp is microsecond precision with no timezone.
     pub visit_literal_timestamp_ntz: VisitLiteralFn<i64>,
-    /// Visit a 64bit timestamp belonging to the list identified by `sibling_list_id`.
-    /// The timestamp is nanosecond precision and adjusted to UTC.
-    pub visit_literal_timestamp_nanos: VisitLiteralFn<i64>,
-    /// Visit a 64bit timestamp belonging to the list identified by `sibling_list_id`.
-    /// The timestamp is nanosecond precision with no timezone.
-    pub visit_literal_timestamp_nanos_ntz: VisitLiteralFn<i64>,
     /// Visit a 32bit integer `date` representing days since UNIX epoch 1970-01-01.  The `date`
     /// belongs to the list identified by `sibling_list_id`.
     pub visit_literal_date: VisitLiteralFn<i32>,
@@ -287,6 +281,30 @@ pub struct EngineExpressionVisitor {
     /// list identified by `sibling_list_id`.
     pub visit_unknown:
         extern "C" fn(data: *mut c_void, sibling_list_id: usize, name: KernelStringSlice),
+    /// Visit a 64bit timestamp belonging to the list identified by `sibling_list_id`.
+    /// The timestamp is nanosecond precision and adjusted to UTC.
+    pub visit_literal_timestamp_nanos: VisitLiteralFn<i64>,
+    /// Visit a 64bit timestamp belonging to the list identified by `sibling_list_id`.
+    /// The timestamp is nanosecond precision with no timezone.
+    pub visit_literal_timestamp_nanos_ntz: VisitLiteralFn<i64>,
+    /// Visit a 16bit `float` belonging to the list identified by `sibling_list_id`.
+    /// f16 values are represented as u16 in the C API.
+    pub visit_literal_float16: VisitLiteralFn<u16>,
+    /// EXPERIMENTAL. Visit an 8bit unsigned `uint8` belonging to the list identified by
+    /// `sibling_list_id`.
+    pub visit_literal_uint8: VisitLiteralFn<u8>,
+    /// EXPERIMENTAL. Visit a 16bit unsigned `uint16` belonging to the list identified by
+    /// `sibling_list_id`.
+    pub visit_literal_uint16: VisitLiteralFn<u16>,
+    /// EXPERIMENTAL. Visit a 32bit unsigned `uint32` belonging to the list identified by
+    /// `sibling_list_id`.
+    pub visit_literal_uint32: VisitLiteralFn<u32>,
+    /// EXPERIMENTAL. Visit a 64bit unsigned `uint64` belonging to the list identified by
+    /// `sibling_list_id`.
+    pub visit_literal_uint64: VisitLiteralFn<u64>,
+    /// EXPERIMENTAL. Visit a 64bit time of day belonging to the list identified by
+    /// `sibling_list_id`. The time is nanoseconds since midnight with no timezone.
+    pub visit_literal_time_nanos: VisitLiteralFn<i64>,
 }
 
 /// Visit the expression of the passed [`SharedExpression`] Handle using the provided `visitor`.
@@ -577,7 +595,22 @@ fn visit_expression_scalar(
         Scalar::Long(val) => call!(visitor, visit_literal_long, sibling_list_id, *val),
         Scalar::Short(val) => call!(visitor, visit_literal_short, sibling_list_id, *val),
         Scalar::Byte(val) => call!(visitor, visit_literal_byte, sibling_list_id, *val),
+        #[cfg(feature = "unsigned-integers")]
+        Scalar::Uint8(val) => call!(visitor, visit_literal_uint8, sibling_list_id, *val),
+        #[cfg(feature = "unsigned-integers")]
+        Scalar::Uint16(val) => call!(visitor, visit_literal_uint16, sibling_list_id, *val),
+        #[cfg(feature = "unsigned-integers")]
+        Scalar::Uint32(val) => call!(visitor, visit_literal_uint32, sibling_list_id, *val),
+        #[cfg(feature = "unsigned-integers")]
+        Scalar::Uint64(val) => call!(visitor, visit_literal_uint64, sibling_list_id, *val),
         Scalar::Float(val) => call!(visitor, visit_literal_float, sibling_list_id, *val),
+        #[cfg(feature = "float16")]
+        Scalar::Float16(val) => call!(
+            visitor,
+            visit_literal_float16,
+            sibling_list_id,
+            val.to_bits()
+        ),
         Scalar::Double(val) => {
             call!(visitor, visit_literal_double, sibling_list_id, *val)
         }
@@ -609,6 +642,10 @@ fn visit_expression_scalar(
                 sibling_list_id,
                 *val
             )
+        }
+        #[cfg(feature = "nanosecond-time")]
+        Scalar::TimeNanos(val) => {
+            call!(visitor, visit_literal_time_nanos, sibling_list_id, *val)
         }
         Scalar::Date(val) => call!(visitor, visit_literal_date, sibling_list_id, *val),
         Scalar::Binary(buf) => call!(
@@ -817,6 +854,42 @@ mod tests {
 
     #[derive(Debug, PartialEq, Eq)]
     enum LiteralEvent {
+        Timestamp {
+            sibling_list_id: usize,
+            value: i64,
+        },
+        TimestampNtz {
+            sibling_list_id: usize,
+            value: i64,
+        },
+        TimestampNanos {
+            sibling_list_id: usize,
+            value: i64,
+        },
+        TimestampNanosNtz {
+            sibling_list_id: usize,
+            value: i64,
+        },
+        Float16 {
+            sibling_list_id: usize,
+            value: u16,
+        },
+        Uint8 {
+            sibling_list_id: usize,
+            value: u8,
+        },
+        Uint16 {
+            sibling_list_id: usize,
+            value: u16,
+        },
+        Uint32 {
+            sibling_list_id: usize,
+            value: u32,
+        },
+        Uint64 {
+            sibling_list_id: usize,
+            value: u64,
+        },
         IntervalYearMonth {
             sibling_list_id: usize,
             value: i32,
@@ -867,6 +940,90 @@ mod tests {
             sibling_list_id,
             child_list_id,
             timestamp_timezone,
+        });
+    }
+
+    extern "C" fn visit_literal_timestamp(data: *mut c_void, sibling_list_id: usize, value: i64) {
+        let builder = unsafe { &mut *(data as *mut TestExpressionBuilder) };
+        builder.events.push(LiteralEvent::Timestamp {
+            sibling_list_id,
+            value,
+        });
+    }
+
+    extern "C" fn visit_literal_timestamp_ntz(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        value: i64,
+    ) {
+        let builder = unsafe { &mut *(data as *mut TestExpressionBuilder) };
+        builder.events.push(LiteralEvent::TimestampNtz {
+            sibling_list_id,
+            value,
+        });
+    }
+
+    extern "C" fn visit_literal_timestamp_nanos(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        value: i64,
+    ) {
+        let builder = unsafe { &mut *(data as *mut TestExpressionBuilder) };
+        builder.events.push(LiteralEvent::TimestampNanos {
+            sibling_list_id,
+            value,
+        });
+    }
+
+    extern "C" fn visit_literal_timestamp_nanos_ntz(
+        data: *mut c_void,
+        sibling_list_id: usize,
+        value: i64,
+    ) {
+        let builder = unsafe { &mut *(data as *mut TestExpressionBuilder) };
+        builder.events.push(LiteralEvent::TimestampNanosNtz {
+            sibling_list_id,
+            value,
+        });
+    }
+
+    extern "C" fn visit_literal_float16(data: *mut c_void, sibling_list_id: usize, value: u16) {
+        let builder = unsafe { &mut *(data as *mut TestExpressionBuilder) };
+        builder.events.push(LiteralEvent::Float16 {
+            sibling_list_id,
+            value,
+        });
+    }
+
+    extern "C" fn visit_literal_uint8(data: *mut c_void, sibling_list_id: usize, value: u8) {
+        let builder = unsafe { &mut *(data as *mut TestExpressionBuilder) };
+        builder.events.push(LiteralEvent::Uint8 {
+            sibling_list_id,
+            value,
+        });
+    }
+
+    extern "C" fn visit_literal_uint16(data: *mut c_void, sibling_list_id: usize, value: u16) {
+        let builder = unsafe { &mut *(data as *mut TestExpressionBuilder) };
+        builder.events.push(LiteralEvent::Uint16 {
+            sibling_list_id,
+            value,
+        });
+    }
+
+    extern "C" fn visit_literal_uint32(data: *mut c_void, sibling_list_id: usize, value: u32) {
+        let builder = unsafe { &mut *(data as *mut TestExpressionBuilder) };
+        builder.events.push(LiteralEvent::Uint32 {
+            sibling_list_id,
+            value,
+        });
+    }
+
+    extern "C" fn visit_literal_uint64(data: *mut c_void, sibling_list_id: usize, value: u64) {
+        let builder = unsafe { &mut *(data as *mut TestExpressionBuilder) };
+        builder.events.push(LiteralEvent::Uint64 {
+            sibling_list_id,
+            value,
         });
     }
 
@@ -967,10 +1124,16 @@ mod tests {
             visit_literal_double: ignore_f64,
             visit_literal_string: ignore_string_slice,
             visit_literal_bool: ignore_bool,
-            visit_literal_timestamp: ignore_i64,
-            visit_literal_timestamp_ntz: ignore_i64,
-            visit_literal_timestamp_nanos: ignore_i64,
-            visit_literal_timestamp_nanos_ntz: ignore_i64,
+            visit_literal_timestamp,
+            visit_literal_timestamp_ntz,
+            visit_literal_timestamp_nanos,
+            visit_literal_timestamp_nanos_ntz,
+            visit_literal_float16,
+            visit_literal_uint8,
+            visit_literal_uint16,
+            visit_literal_uint32,
+            visit_literal_uint64,
+            visit_literal_time_nanos: ignore_i64,
             visit_literal_date: ignore_i32,
             visit_literal_interval_year_month,
             visit_literal_interval_day_time,
@@ -1060,6 +1223,72 @@ mod tests {
         LiteralEvent::IntervalDayTime { sibling_list_id: 0, value: i64::MAX }
     )]
     fn visit_expression_uses_interval_literal_callbacks(
+        #[case] expression: Expression,
+        #[case] expected: LiteralEvent,
+    ) {
+        let mut builder = TestExpressionBuilder::default();
+        let mut visitor = test_visitor(&mut builder);
+
+        let top_level_id = visit_expression_internal(&expression, &mut visitor);
+
+        assert_eq!(top_level_id, 0);
+        assert_eq!(builder.events, vec![expected]);
+    }
+
+    #[rstest]
+    #[case(lit(Scalar::Timestamp(0)), LiteralEvent::Timestamp { sibling_list_id: 0, value: 0 })]
+    #[case(
+        lit(Scalar::Timestamp(i64::MIN)),
+        LiteralEvent::Timestamp { sibling_list_id: 0, value: i64::MIN }
+    )]
+    #[case(
+        lit(Scalar::TimestampNtz(i64::MAX)),
+        LiteralEvent::TimestampNtz { sibling_list_id: 0, value: i64::MAX }
+    )]
+    #[case(
+        lit(Scalar::TimestampNtz(-1)),
+        LiteralEvent::TimestampNtz { sibling_list_id: 0, value: -1 }
+    )]
+    fn visit_expression_uses_timestamp_literal_callbacks(
+        #[case] expression: Expression,
+        #[case] expected: LiteralEvent,
+    ) {
+        let mut builder = TestExpressionBuilder::default();
+        let mut visitor = test_visitor(&mut builder);
+
+        let top_level_id = visit_expression_internal(&expression, &mut visitor);
+
+        assert_eq!(top_level_id, 0);
+        assert_eq!(builder.events, vec![expected]);
+    }
+
+    #[cfg(feature = "nanosecond-timestamps")]
+    #[rstest]
+    #[case(
+        lit(Scalar::TimestampNanos(1_234_567_890_123_456_789)),
+        LiteralEvent::TimestampNanos { sibling_list_id: 0, value: 1_234_567_890_123_456_789 }
+    )]
+    #[case(
+        lit(Scalar::TimestampNanos(-1)),
+        LiteralEvent::TimestampNanos { sibling_list_id: 0, value: -1 }
+    )]
+    #[case(
+        lit(Scalar::TimestampNanos(i64::MIN)),
+        LiteralEvent::TimestampNanos { sibling_list_id: 0, value: i64::MIN }
+    )]
+    #[case(
+        lit(Scalar::TimestampNanosNtz(987_654_321_987_654_321)),
+        LiteralEvent::TimestampNanosNtz { sibling_list_id: 0, value: 987_654_321_987_654_321 }
+    )]
+    #[case(
+        lit(Scalar::TimestampNanosNtz(0)),
+        LiteralEvent::TimestampNanosNtz { sibling_list_id: 0, value: 0 }
+    )]
+    #[case(
+        lit(Scalar::TimestampNanosNtz(i64::MAX)),
+        LiteralEvent::TimestampNanosNtz { sibling_list_id: 0, value: i64::MAX }
+    )]
+    fn visit_expression_uses_timestamp_nanos_literal_callbacks(
         #[case] expression: Expression,
         #[case] expected: LiteralEvent,
     ) {

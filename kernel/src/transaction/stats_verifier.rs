@@ -149,8 +149,18 @@ define_column_types!(COL_TYPES_INT, DataType::INTEGER);
 define_column_types!(COL_TYPES_LONG, DataType::LONG);
 define_column_types!(COL_TYPES_STRING, DataType::STRING);
 define_column_types!(COL_TYPES_BINARY, DataType::BINARY);
+#[cfg(feature = "float16")]
+define_column_types!(COL_TYPES_FLOAT16, DataType::FLOAT16);
 define_column_types!(COL_TYPES_FLOAT, DataType::FLOAT);
 define_column_types!(COL_TYPES_DOUBLE, DataType::DOUBLE);
+#[cfg(feature = "unsigned-integers")]
+define_column_types!(COL_TYPES_UINT8, DataType::UINT8);
+#[cfg(feature = "unsigned-integers")]
+define_column_types!(COL_TYPES_UINT16, DataType::UINT16);
+#[cfg(feature = "unsigned-integers")]
+define_column_types!(COL_TYPES_UINT32, DataType::UINT32);
+#[cfg(feature = "unsigned-integers")]
+define_column_types!(COL_TYPES_UINT64, DataType::UINT64);
 define_column_types!(COL_TYPES_DATE, DataType::DATE);
 define_column_types!(COL_TYPES_TIMESTAMP, DataType::TIMESTAMP);
 define_column_types!(COL_TYPES_TIMESTAMP_NTZ, DataType::TIMESTAMP_NTZ);
@@ -158,6 +168,8 @@ define_column_types!(COL_TYPES_TIMESTAMP_NTZ, DataType::TIMESTAMP_NTZ);
 define_column_types!(COL_TYPES_TIMESTAMP_NANOS, DataType::TIMESTAMP_NANOS);
 #[cfg(feature = "nanosecond-timestamps")]
 define_column_types!(COL_TYPES_TIMESTAMP_NANOS_NTZ, DataType::TIMESTAMP_NANOS_NTZ);
+#[cfg(feature = "nanosecond-time")]
+define_column_types!(COL_TYPES_TIME_NANOS, DataType::TIME_NANOS);
 #[allow(clippy::unwrap_used)]
 static COL_TYPES_DECIMAL: LazyLock<ColumnNamesAndTypes> = LazyLock::new(|| {
     let names = vec![
@@ -196,6 +208,8 @@ fn column_types_for(dt: &DataType) -> KernelResult<&'static ColumnNamesAndTypes>
         &DataType::LONG => Ok(&COL_TYPES_LONG),
         &DataType::STRING => Ok(&COL_TYPES_STRING),
         &DataType::BINARY => Ok(&COL_TYPES_BINARY),
+        #[cfg(feature = "float16")]
+        &DataType::FLOAT16 => Ok(&COL_TYPES_FLOAT16),
         &DataType::FLOAT => Ok(&COL_TYPES_FLOAT),
         &DataType::DOUBLE => Ok(&COL_TYPES_DOUBLE),
         &DataType::DATE => Ok(&COL_TYPES_DATE),
@@ -205,7 +219,17 @@ fn column_types_for(dt: &DataType) -> KernelResult<&'static ColumnNamesAndTypes>
         &DataType::TIMESTAMP_NANOS => Ok(&COL_TYPES_TIMESTAMP_NANOS),
         #[cfg(feature = "nanosecond-timestamps")]
         &DataType::TIMESTAMP_NANOS_NTZ => Ok(&COL_TYPES_TIMESTAMP_NANOS_NTZ),
+        #[cfg(feature = "nanosecond-time")]
+        &DataType::TIME_NANOS => Ok(&COL_TYPES_TIME_NANOS),
         DataType::Primitive(PrimitiveType::Decimal(_)) => Ok(&COL_TYPES_DECIMAL),
+        #[cfg(feature = "unsigned-integers")]
+        &DataType::UINT8 => Ok(&COL_TYPES_UINT8),
+        #[cfg(feature = "unsigned-integers")]
+        &DataType::UINT16 => Ok(&COL_TYPES_UINT16),
+        #[cfg(feature = "unsigned-integers")]
+        &DataType::UINT32 => Ok(&COL_TYPES_UINT32),
+        #[cfg(feature = "unsigned-integers")]
+        &DataType::UINT64 => Ok(&COL_TYPES_UINT64),
         &DataType::INTERVAL_YEAR_MONTH | &DataType::INTERVAL_DAY_TIME => {
             Err(KernelError::unsupported(format!(
                 "Interval types are not supported for stats validation: {dt}"
@@ -241,6 +265,8 @@ fn is_stat_present<'b>(
         &DataType::INTEGER => Ok(getter.get_int(row_idx, field_name)?.is_some()),
         &DataType::LONG => Ok(getter.get_long(row_idx, field_name)?.is_some()),
         &DataType::FLOAT => Ok(getter.get_float(row_idx, field_name)?.is_some()),
+        #[cfg(feature = "float16")]
+        &DataType::FLOAT16 => Ok(getter.get_float16(row_idx, field_name)?.is_some()),
         &DataType::DOUBLE => Ok(getter.get_double(row_idx, field_name)?.is_some()),
         &DataType::DATE => Ok(getter.get_date(row_idx, field_name)?.is_some()),
         &DataType::TIMESTAMP | &DataType::TIMESTAMP_NTZ => {
@@ -250,11 +276,21 @@ fn is_stat_present<'b>(
         &DataType::TIMESTAMP_NANOS | &DataType::TIMESTAMP_NANOS_NTZ => {
             Ok(getter.get_timestamp(row_idx, field_name)?.is_some())
         }
+        #[cfg(feature = "nanosecond-time")]
+        &DataType::TIME_NANOS => Ok(getter.get_long(row_idx, field_name)?.is_some()),
         &DataType::STRING => Ok(getter.get_str(row_idx, field_name)?.is_some()),
         &DataType::BINARY => Ok(getter.get_binary(row_idx, field_name)?.is_some()),
         DataType::Primitive(PrimitiveType::Decimal(_)) => {
             Ok(getter.get_decimal(row_idx, field_name)?.is_some())
         }
+        #[cfg(feature = "unsigned-integers")]
+        &DataType::UINT8 => Ok(getter.get_uint8(row_idx, field_name)?.is_some()),
+        #[cfg(feature = "unsigned-integers")]
+        &DataType::UINT16 => Ok(getter.get_uint16(row_idx, field_name)?.is_some()),
+        #[cfg(feature = "unsigned-integers")]
+        &DataType::UINT32 => Ok(getter.get_uint32(row_idx, field_name)?.is_some()),
+        #[cfg(feature = "unsigned-integers")]
+        &DataType::UINT64 => Ok(getter.get_uint64(row_idx, field_name)?.is_some()),
         &DataType::INTERVAL_YEAR_MONTH | &DataType::INTERVAL_DAY_TIME => {
             Err(KernelError::unsupported(format!(
                 "Interval types are not supported for stats presence check: {data_type}"
