@@ -87,7 +87,7 @@ def write_log(log_dir: Path, file_name: str, file_size: int) -> None:
             "operationMetrics": {
                 "execution_time_ms": 0,
                 "num_added_files": 1,
-                "num_added_rows": 3,
+                "num_added_rows": 5,
                 "num_partitions": 0,
                 "num_removed_files": 0,
             },
