@@ -236,7 +236,8 @@ void print_tree_helper(ExpressionItem ref, int depth) {
             "Boolean", "Byte", "Short", "Integer", "Long", "Float",
             "Double", "String", "Binary", "Date", "Timestamp", "TimestampNtz",
             "Decimal", "IntervalYearMonth", "IntervalDayTime", "TimestampNanos",
-            "TimestampNanosNtz",
+            "TimestampNanosNtz", "Float16", "Uint8", "Uint16", "Uint32", "Uint64",
+            "TimeNanos",
           };
           const size_t null_type_count = sizeof(null_type_names) / sizeof(null_type_names[0]);
           struct NullTypeInfo* nt = &lit->value.null_type;

@@ -284,6 +284,22 @@ pub unsafe extern "C" fn get_simple_testing_kernel_expression() -> Handle<Shared
         lit(Scalar::IntervalDayTime(9_876_543_210)),
         null_lit(DataType::INTEGER),
         null_lit(DataType::decimal(10, 5).unwrap()),
+        #[cfg(feature = "nanosecond-timestamps")]
+        null_lit(DataType::TIMESTAMP_NANOS),
+        #[cfg(feature = "nanosecond-timestamps")]
+        null_lit(DataType::TIMESTAMP_NANOS_NTZ),
+        #[cfg(feature = "float16")]
+        null_lit(DataType::FLOAT16),
+        #[cfg(feature = "unsigned-integers")]
+        null_lit(DataType::UINT8),
+        #[cfg(feature = "unsigned-integers")]
+        null_lit(DataType::UINT16),
+        #[cfg(feature = "unsigned-integers")]
+        null_lit(DataType::UINT32),
+        #[cfg(feature = "unsigned-integers")]
+        null_lit(DataType::UINT64),
+        #[cfg(feature = "nanosecond-time")]
+        null_lit(DataType::TIME_NANOS),
         Expr::binary(BinaryExpressionOp::Plus, lit(10), lit(20)),
         Expr::binary(BinaryExpressionOp::Minus, lit(50), lit(30)),
         Expr::binary(BinaryExpressionOp::Multiply, lit(5), lit(6)),
