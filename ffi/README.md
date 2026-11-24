@@ -140,6 +140,11 @@ make
 ./visit_expression
 ```
 
+The example needs the Rust library built with the `test-ffi` feature. Its test expressions include a
+literal of each feature-gated type the library was built with, so pass CMake the matching option for
+each such feature: `-DFLOAT16=ON` for `float16` and `-DNANOSECOND_TIMESTAMPS=ON` for
+`nanosecond-timestamps`.
+
 ## Testing
 
 The examples include comprehensive testing capabilities:

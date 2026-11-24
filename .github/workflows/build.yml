@@ -399,7 +399,7 @@ jobs:
           pushd ffi/examples/visit-expression
           mkdir build
           pushd build
-          cmake ..
+          cmake .. -DFLOAT16=ON -DNANOSECOND_TIMESTAMPS=ON
           make
           make test
       - name: build and run delta-kernel-unity-catalog-ffi test

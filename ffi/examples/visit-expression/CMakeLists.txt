@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.12)
 project(visit_expressions)
+# The expected output includes the literals of every type feature. Turn on the option for each
+# feature delta_kernel_ffi was built with; the literals of the others are excluded.
+option(FLOAT16 "delta_kernel_ffi is built with --features float16." OFF)
+option(NANOSECOND_TIMESTAMPS "delta_kernel_ffi is built with --features nanosecond-timestamps." OFF)
 
 add_executable(visit_expression visit_expression.c ../common/kernel_utils.c)
 target_compile_definitions(visit_expression PUBLIC DEFINE_DEFAULT_ENGINE_BASE)
@@ -22,4 +26,13 @@ endif()
 include(CTest)
 set(ExprTestRunner "../../../tests/test-expression-visitor/run_test.sh")
 set(ExprExpectedPath "../../../tests/test-expression-visitor/expected.txt")
-add_test(NAME test_expression_visitor COMMAND ${ExprTestRunner} ${ExprExpectedPath})
+set(ExprExcludedLiterals "")
+if(NOT FLOAT16)
+  list(APPEND ExprExcludedLiterals Float16)
+endif()
+if(NOT NANOSECOND_TIMESTAMPS)
+  list(APPEND ExprExcludedLiterals TimestampNanos TimestampNanosNtz)
+endif()
+list(JOIN ExprExcludedLiterals "|" ExprExcludedLiterals)
+add_test(NAME test_expression_visitor
+  COMMAND ${ExprTestRunner} ${ExprExpectedPath} "${ExprExcludedLiterals}")
