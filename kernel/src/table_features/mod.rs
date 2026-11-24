@@ -187,7 +187,10 @@ pub(crate) enum TableFeature {
     /// those tables unreadable.
     #[cfg(feature = "float16")]
     Float16,
-    /// Nanosecond resolution timestamps
+    /// Nanosecond resolution timestamps. Experimental: serializes to the bare name
+    /// `timestampNanos`, without the `-dev` suffix the other in-development features use, because
+    /// tables written by earlier releases of this fork already list `timestampNanos` in their
+    /// protocol. Renaming it would make those tables unreadable.
     #[cfg(feature = "nanosecond-timestamps")]
     #[strum(serialize = "timestampNanos")]
     #[serde(rename = "timestampNanos")]
