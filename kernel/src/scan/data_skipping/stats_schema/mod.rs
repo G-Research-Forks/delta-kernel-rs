@@ -413,7 +413,7 @@ pub(crate) fn is_skipping_eligible_datatype(data_type: &PrimitiveType) -> bool {
     #[cfg(not(feature = "float16"))]
     let is_float16 = false;
     #[cfg(feature = "float16")]
-    let is_float16 = matches!(data_type, &PrimitiveType::Float16);
+    let is_float16 = data_type == &PrimitiveType::Float16;
 
     #[cfg(feature = "nanosecond-timestamps")]
     let is_nanos = matches!(

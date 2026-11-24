@@ -1601,7 +1601,6 @@ mod tests {
         #[cfg(feature = "float16")]
         {
             // Verify float16 column
-            use half::f16;
             let float_col = data[0]
                 .column(col_idx)
                 .as_any()
