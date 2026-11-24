@@ -384,7 +384,7 @@ jobs:
           cargo build --locked
           popd
           pushd ffi
-          cargo build --locked --features default-engine-rustls,test-ffi,tracing,delta-kernel-unity-catalog,geo-type-in-dev,udt-in-dev,parquet-encryption-in-dev,nanosecond-timestamps,float16
+          cargo build --locked --features default-engine-rustls,test-ffi,tracing,delta-kernel-unity-catalog,geo-type-in-dev,udt-in-dev,parquet-encryption-in-dev,nanosecond-timestamps,float16,unsigned-integers,nanosecond-time
           popd
       - name: build and run read-table test
         run: |
@@ -399,7 +399,7 @@ jobs:
           pushd ffi/examples/visit-expression
           mkdir build
           pushd build
-          cmake .. -DFLOAT16=ON -DNANOSECOND_TIMESTAMPS=ON
+          cmake .. -DFLOAT16=ON -DNANOSECOND_TIMESTAMPS=ON -DNANOSECOND_TIME=ON -DUNSIGNED_INTEGERS=ON
           make
           make test
       - name: build and run delta-kernel-unity-catalog-ffi test

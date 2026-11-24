@@ -163,6 +163,8 @@ pub unsafe extern "C" fn get_testing_kernel_expression() -> Handle<SharedExpress
         lit(Scalar::TimestampNanos(150)),
         #[cfg(feature = "nanosecond-timestamps")]
         lit(Scalar::TimestampNanosNtz(200)),
+        #[cfg(feature = "nanosecond-time")]
+        lit(Scalar::TimeNanos(250)),
         lit(Scalar::Date(32)),
         lit(0x0000deadbeefcafeu64.to_be_bytes().to_vec()),
         // Both the most and least significant u64 of the Decimal value will be 1
@@ -276,6 +278,8 @@ pub unsafe extern "C" fn get_simple_testing_kernel_expression() -> Handle<Shared
         lit(Scalar::TimestampNanos(1_234_567_890_123_456_789)),
         #[cfg(feature = "nanosecond-timestamps")]
         lit(Scalar::TimestampNanosNtz(-987_654_321)),
+        #[cfg(feature = "nanosecond-time")]
+        lit(Scalar::TimeNanos(45_296_789_012_345)),
         lit(Scalar::IntervalYearMonth(-13)),
         lit(Scalar::IntervalDayTime(9_876_543_210)),
         null_lit(DataType::INTEGER),
